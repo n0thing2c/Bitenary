@@ -1,0 +1,42 @@
+from pathlib import Path
+import os
+import sys
+
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(BACKEND_ROOT))
+
+
+TEST_ENV = {
+    "APP_NAME": "Bitenary API",
+    "SERVICE_NAME": "bitenary-api",
+    "ENVIRONMENT": "test",
+    "APP_DEBUG": "false",
+    "LOG_LEVEL": "INFO",
+    "DATABASE_URL": "postgresql+asyncpg://bitenary:bitenary@localhost:5433/bitenary",
+    "SQL_ECHO": "false",
+    "FRONTEND_ORIGINS": "http://localhost:5173",
+    "BACKEND_PUBLIC_URL": "http://localhost:8000",
+    "COOKIE_SECURE": "false",
+    "COOKIE_SAMESITE": "lax",
+    "AUTHENTIK_CLIENT_ID": "test-client-id",
+    "AUTHENTIK_CLIENT_SECRET": "test-client-secret",
+    "AUTHENTIK_ISSUER": "http://localhost:9000/application/o/bitenary/",
+    "AUTHENTIK_AUTHORIZE_URL": "http://localhost:9000/application/o/authorize/",
+    "AUTHENTIK_TOKEN_URL": "http://localhost:9000/application/o/token/",
+    "AUTHENTIK_USERINFO_URL": "http://localhost:9000/application/o/userinfo/",
+    "AUTHENTIK_REVOKE_URL": "http://localhost:9000/application/o/revoke/",
+    "AUTHENTIK_JWKS_URL": "http://localhost:9000/application/o/bitenary/jwks/",
+    "AUTHENTIK_END_SESSION_URL": (
+        "http://localhost:9000/application/o/bitenary/end-session/"
+    ),
+    "OIDC_REDIRECT_URI": "http://localhost:8000/api/auth/callback",
+    "OIDC_SCOPE": "openid profile email offline_access",
+    "OIDC_STATE_SECRET": "test-oidc-state-secret",
+    "CSRF_SECRET": "test-csrf-secret",
+    "MCP_TOKEN_PEPPER": "test-mcp-token-pepper",
+}
+
+
+for key, value in TEST_ENV.items():
+    os.environ.setdefault(key, value)
