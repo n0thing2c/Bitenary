@@ -1,2 +1,31 @@
 .env
-venv
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Node / frontend
+node_modules/
+dist/
+build/
+
+# Local infrastructure state
+infrastructure/**/data/
+infrastructure/**/certs/
+infrastructure/**/custom-templates/
+
+# Local docs/design exports
+docs/
