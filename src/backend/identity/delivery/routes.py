@@ -1,4 +1,4 @@
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
@@ -15,7 +15,11 @@ from identity.delivery.dto import CsrfResponse, CurrentUserResponse
 from identity.domain.entities import CurrentUser
 from identity.domain.errors import AuthenticationError
 from identity.service.auth_service import AuthService
-from identity.service.oidc_transaction import OidcTransaction, OidcTransactionService
+from identity.service.oidc_transaction import (
+    OidcTransaction,
+    OidcTransactionService,
+    validate_return_to,
+)
 from identity.wiring import get_auth_service, get_current_user, get_oidc_transaction_service
 
 
@@ -39,11 +43,9 @@ def login(
 def signup(
     return_to: str | None = None,
     settings: Settings = Depends(get_settings),
-    transactions: OidcTransactionService = Depends(get_oidc_transaction_service),
 ) -> RedirectResponse:
-    transaction = transactions.create(return_to)
     return RedirectResponse(
-        build_authorization_url(settings, transaction),
+        build_signup_url(settings, return_to),
         status_code=status.HTTP_302_FOUND,
     )
 
@@ -173,6 +175,30 @@ def build_authorization_url(settings: Settings, transaction: OidcTransaction) ->
         }
     )
     return f"{settings.authentik_authorize_url}?{query}"
+
+
+def build_signup_url(settings: Settings, return_to: str | None) -> str:
+    safe_return_to = validate_return_to(return_to)
+    next_url = append_query_params(
+        f"{settings.backend_public_url.rstrip('/')}/api/auth/login",
+        {"return_to": safe_return_to},
+    )
+    return append_query_params(settings.authentik_enrollment_url, {"next": next_url})
+
+
+def append_query_params(url: str, params: dict[str, str]) -> str:
+    parsed = urlsplit(url)
+    query = parse_qsl(parsed.query, keep_blank_values=True)
+    query.extend(params.items())
+    return urlunsplit(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            urlencode(query),
+            parsed.fragment,
+        )
+    )
 
 
 def frontend_redirect_url(settings: Settings, return_to: str) -> str:

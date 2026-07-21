@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     authentik_client_secret: str
     authentik_issuer: str
     authentik_authorize_url: str
+    authentik_enrollment_url: str
     authentik_token_url: str
     authentik_userinfo_url: str
     authentik_revoke_url: str

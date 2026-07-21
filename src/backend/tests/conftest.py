@@ -23,6 +23,7 @@ TEST_ENV = {
     "AUTHENTIK_CLIENT_SECRET": "test-client-secret",
     "AUTHENTIK_ISSUER": "http://localhost:9000/application/o/bitenary/",
     "AUTHENTIK_AUTHORIZE_URL": "http://localhost:9000/application/o/authorize/",
+    "AUTHENTIK_ENROLLMENT_URL": "http://localhost:9000/if/flow/default-enrollment-flow/",
     "AUTHENTIK_TOKEN_URL": "http://localhost:9000/application/o/token/",
     "AUTHENTIK_USERINFO_URL": "http://localhost:9000/application/o/userinfo/",
     "AUTHENTIK_REVOKE_URL": "http://localhost:9000/application/o/revoke/",

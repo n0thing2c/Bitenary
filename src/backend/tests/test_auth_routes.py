@@ -65,13 +65,21 @@ def test_login_redirects_to_authentik_with_pkce(client: TestClient) -> None:
     assert "nonce=" in location
 
 
-def test_signup_uses_same_oidc_redirect_flow(client: TestClient) -> None:
-    response = client.get("/api/auth/signup", follow_redirects=False)
+def test_signup_redirects_to_authentik_enrollment_flow(client: TestClient) -> None:
+    response = client.get(
+        "/api/auth/signup?return_to=/dashboard",
+        follow_redirects=False,
+    )
 
     assert response.status_code == 302
     assert response.headers["location"].startswith(
-        "http://localhost:9000/application/o/authorize/"
+        "http://localhost:9000/if/flow/default-enrollment-flow/"
     )
+    assert (
+        "next=http%3A%2F%2Flocalhost%3A8000%2Fapi%2Fauth%2Flogin"
+        in response.headers["location"]
+    )
+    assert "return_to%3D%252Fdashboard" in response.headers["location"]
 
 
 def test_callback_sets_auth_and_csrf_cookies(client: TestClient) -> None:
