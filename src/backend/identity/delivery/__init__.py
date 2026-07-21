@@ -1,0 +1,1 @@
+"""Identity delivery adapters."""
