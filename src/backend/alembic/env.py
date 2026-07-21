@@ -16,6 +16,7 @@ sys.path.insert(0, str(BACKEND_ROOT))
 
 from core.config import get_settings  # noqa: E402
 from core.database import Base  # noqa: E402
+from identity.infrastructure import sqlalchemy_users  # noqa: E402,F401
 
 
 config = context.config
