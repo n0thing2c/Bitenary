@@ -11,7 +11,7 @@ from identity.delivery.cookies import (
     set_auth_cookies,
     set_csrf_cookie,
 )
-from backend.identity.delivery.dto import CsrfResponse, CurrentUserResponse
+from identity.delivery.dto import CsrfResponse, CurrentUserResponse
 from identity.domain.entities import CurrentUser
 from identity.domain.errors import AuthenticationError
 from identity.service.auth_service import AuthService
@@ -95,6 +95,7 @@ async def refresh(
     settings: Settings = Depends(get_settings),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> Response:
+    response.status_code = status.HTTP_204_NO_CONTENT
     verify_csrf_token(request)
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     if not refresh_token:
@@ -133,6 +134,7 @@ async def logout(
     settings: Settings = Depends(get_settings),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> Response:
+    response.status_code = status.HTTP_204_NO_CONTENT
     verify_csrf_token(request)
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     try:
