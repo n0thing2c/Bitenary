@@ -19,7 +19,12 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    user_status = postgresql.ENUM("ACTIVE", "DISABLED", name="user_status")
+    user_status = postgresql.ENUM(
+        "ACTIVE",
+        "DISABLED",
+        name="user_status",
+        create_type=False,
+    )
     user_status.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
@@ -48,5 +53,10 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("users")
-    user_status = postgresql.ENUM("ACTIVE", "DISABLED", name="user_status")
+    user_status = postgresql.ENUM(
+        "ACTIVE",
+        "DISABLED",
+        name="user_status",
+        create_type=False,
+    )
     user_status.drop(op.get_bind(), checkfirst=True)
