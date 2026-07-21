@@ -1,0 +1,56 @@
+.signed-in-panel {
+  width: min(100%, 338px);
+  padding: 34px 30px 28px;
+  border: 1px solid #edf1f7;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 20px 55px rgba(37, 51, 77, 0.08);
+  text-align: center;
+}
+
+.signed-in-panel__eyebrow {
+  margin: 0 0 8px;
+  color: #697187;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+.signed-in-panel__title {
+  margin: 0;
+  color: #0d1f3d;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.signed-in-panel__email {
+  margin: 10px 0 26px;
+  color: #606779;
+  font-size: 13px;
+}
+
+.signed-in-panel__error {
+  margin: 18px 0 0;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.signed-in-panel__button {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 26px;
+  border-radius: 2px;
+  background: #3e414d;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.signed-in-panel__button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}

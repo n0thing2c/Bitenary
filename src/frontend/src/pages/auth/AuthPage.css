@@ -1,0 +1,13 @@
+.auth-loading {
+  width: min(100%, 338px);
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #edf1f7;
+  border-radius: 18px;
+  background: #ffffff;
+  color: #687087;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 20px 55px rgba(37, 51, 77, 0.08);
+}
