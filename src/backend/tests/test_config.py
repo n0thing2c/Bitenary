@@ -37,3 +37,16 @@ def test_settings_reads_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
     get_settings.cache_clear()
+
+
+def test_production_rejects_weak_mcp_token_pepper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("MCP_TOKEN_PEPPER", "replace-me")
+    get_settings.cache_clear()
+
+    with pytest.raises(ValueError, match="MCP_TOKEN_PEPPER"):
+        get_settings()
+
+    get_settings.cache_clear()
