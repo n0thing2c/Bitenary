@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from typing import Literal
 
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -64,10 +65,22 @@ class Settings(BaseSettings):
     oidc_state_secret: str
     csrf_secret: str
     mcp_token_pepper: str
+    mcp_token_ttl_days: int = Field(default=90, ge=1, le=3650)
 
     @property
     def frontend_origin_list(self) -> list[str]:
         return parse_frontend_origins(self.frontend_origins)
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        if self.environment.lower() == "production" and (
+            self.mcp_token_pepper == "replace-me"
+            or len(self.mcp_token_pepper) < 32
+        ):
+            raise ValueError(
+                "MCP_TOKEN_PEPPER must contain at least 32 characters in production"
+            )
+        return self
 
 
 @lru_cache
