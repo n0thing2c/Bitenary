@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 import logging
 
 from fastapi import FastAPI, Request
@@ -6,6 +7,7 @@ from fastapi.responses import JSONResponse
 from starlette import status
 
 from api.routers import router as api_router
+from bitenary_mcp.server import create_mcp_server
 from core.config import Settings, get_settings
 
 
@@ -19,10 +21,18 @@ def configure_logging(settings: Settings) -> None:
 def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging(settings)
+    mcp_server = create_mcp_server(settings)
+    mcp_app = mcp_server.streamable_http_app()
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        async with mcp_server.session_manager.run():
+            yield
 
     app = FastAPI(
         title=settings.app_name,
         debug=settings.app_debug,
+        lifespan=lifespan,
     )
 
     app.add_middleware(
@@ -49,6 +59,9 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(api_router)
+    # The fallback mount preserves the public endpoint as exactly /mcp while
+    # allowing FastAPI REST routes to take precedence.
+    app.mount("/", mcp_app, name="mcp")
     return app
 
 
