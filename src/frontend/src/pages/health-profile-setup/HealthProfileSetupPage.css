@@ -1,0 +1,166 @@
+.profile-setup-page {
+  min-height: 100vh;
+  padding: 28px 20px 46px;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(7, 111, 104, 0.07), transparent 29%),
+    radial-gradient(circle at 85% 80%, rgba(13, 77, 111, 0.06), transparent 31%),
+    #f5f8f8;
+}
+
+.profile-setup-page__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: #064c49;
+}
+
+.profile-setup-page__mark {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+}
+
+.profile-setup-page__mark svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.profile-setup-page__brand strong {
+  font-size: 20px;
+}
+
+.profile-setup-page__brand > span:last-child {
+  padding-left: 10px;
+  border-left: 1px solid #b9caca;
+  color: #6e7e81;
+  font-family: "Courier New", monospace;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.profile-setup-card {
+  position: relative;
+  width: min(100%, 760px);
+  margin: 28px auto 0;
+  overflow: hidden;
+  border: 1px solid #d5dfe0;
+  border-radius: 9px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(25, 57, 62, 0.1);
+}
+
+.profile-setup-card__header {
+  min-height: 112px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 27px 30px;
+  border-bottom: 1px solid #dfe7e8;
+  background: #f8faf9;
+}
+
+.profile-setup-card__header p {
+  margin: 0 0 5px;
+  color: #15857d;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.profile-setup-card__header h1 {
+  margin: 0;
+  color: #123940;
+  font-size: 24px;
+}
+
+.profile-setup-card__header div > span {
+  display: block;
+  margin-top: 6px;
+  color: #748184;
+  font-size: 11px;
+}
+
+.profile-setup-card__status {
+  padding: 7px 9px;
+  border: 1px solid #c9dddd;
+  border-radius: 20px;
+  background: #ffffff;
+  color: #477075;
+  font-size: 9px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.profile-setup-card__skip {
+  position: absolute;
+  right: 198px;
+  bottom: 18px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 5px;
+  background: transparent;
+  color: #647477;
+  font-size: 10px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.profile-setup-card__skip:hover {
+  background: #e9eeee;
+}
+
+.profile-setup-card__skip:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.profile-setup-page__privacy {
+  margin: 18px auto 0;
+  color: #819093;
+  font-size: 9px;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .profile-setup-page {
+    padding: 20px 10px 32px;
+  }
+
+  .profile-setup-page__brand > span:last-child {
+    display: none;
+  }
+
+  .profile-setup-card {
+    margin-top: 20px;
+  }
+
+  .profile-setup-card__header {
+    padding: 22px 20px;
+  }
+
+  .profile-setup-card__status {
+    display: none;
+  }
+
+  .profile-setup-card__skip {
+    right: 20px;
+    bottom: 18px;
+    left: 20px;
+    width: auto;
+  }
+
+  .profile-setup-card .health-profile-form__actions {
+    padding-bottom: 68px;
+  }
+
+  .profile-setup-card .health-profile-form__button--primary {
+    width: 100%;
+  }
+}

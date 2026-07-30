@@ -22,6 +22,10 @@ class UserModel(Base):
     authentik_sub: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     username: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    profile_onboarding_dismissed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     status: Mapped[UserStatus] = mapped_column(
         Enum(UserStatus, name="user_status"),
         nullable=False,

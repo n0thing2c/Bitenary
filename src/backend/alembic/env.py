@@ -17,6 +17,7 @@ sys.path.insert(0, str(BACKEND_ROOT))
 from core.config import get_settings  # noqa: E402
 from core.database import Base  # noqa: E402
 from bitenary_mcp.infrastructure import sqlalchemy_mcp  # noqa: E402,F401
+from health_profile.infrastructure import sqlalchemy_profiles  # noqa: E402,F401
 from identity.infrastructure import sqlalchemy_users  # noqa: E402,F401
 
 

@@ -21,7 +21,9 @@ body {
 }
 
 button,
-a {
+a,
+input,
+select {
   font: inherit;
 }
 
@@ -31,4 +33,56 @@ button {
 
 #root {
   min-height: 100vh;
+}
+
+.app-state {
+  min-height: 100vh;
+  display: grid;
+  padding: 24px;
+  place-items: center;
+  background: #f4f7f8;
+  color: #536b70;
+  text-align: center;
+}
+
+.app-state > div {
+  width: min(100%, 360px);
+  padding: 32px;
+  border: 1px solid #dbe5e5;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.app-state p {
+  margin: 12px 0 0;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.app-state button {
+  min-height: 38px;
+  margin-top: 18px;
+  padding: 0 16px;
+  border-radius: 5px;
+  background: #064d49;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.app-state__spinner {
+  width: 24px;
+  height: 24px;
+  display: inline-block;
+  border: 3px solid #d6e5e3;
+  border-top-color: #08746d;
+  border-radius: 50%;
+  animation: app-spin 700ms linear infinite;
+}
+
+@keyframes app-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

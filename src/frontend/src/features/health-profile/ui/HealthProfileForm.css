@@ -1,0 +1,371 @@
+.health-profile-form fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.health-profile-form__section {
+  padding: 26px 30px 30px;
+  border-bottom: 1px solid #dfe7e8;
+}
+
+.health-profile-form__section-heading {
+  display: flex;
+  gap: 13px;
+  margin-bottom: 22px;
+}
+
+.health-profile-form__section-index {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #b9d4d1;
+  border-radius: 50%;
+  color: #006c67;
+  font-family: "Courier New", monospace;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.health-profile-form__section-heading p {
+  margin: 0 0 5px;
+  color: #006c67;
+  font-family: "Courier New", monospace;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+.health-profile-form__section-heading h2 {
+  margin: 0;
+  color: #15373e;
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.health-profile-form__section-heading div > span {
+  display: block;
+  margin-top: 4px;
+  color: #79878a;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.health-profile-form__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 19px 16px;
+}
+
+.health-profile-form__full,
+.health-profile-form__tag-field {
+  grid-column: 1 / -1;
+}
+
+.health-profile-form__label {
+  display: block;
+  color: #4d5f63;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.health-profile-form__field {
+  min-width: 0;
+  display: block;
+}
+
+.health-profile-form__field-heading {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+
+.health-profile-form__field-heading > span:last-child:not(:first-child) {
+  color: #95a0a2;
+  font-size: 9px;
+}
+
+.health-profile-form__input-wrap {
+  position: relative;
+  display: block;
+}
+
+.health-profile-form input,
+.health-profile-form select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #cdd8da;
+  border-radius: 5px;
+  outline: none;
+  background: #ffffff;
+  color: #243e44;
+  font: inherit;
+  font-size: 12px;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.health-profile-form input {
+  padding: 0 42px 0 12px;
+}
+
+.health-profile-form select {
+  padding: 0 34px 0 12px;
+}
+
+.health-profile-form input:focus,
+.health-profile-form select:focus {
+  border-color: #168b83;
+  box-shadow: 0 0 0 3px rgba(22, 139, 131, 0.12);
+}
+
+.health-profile-form input::placeholder {
+  color: #a3adaf;
+}
+
+.health-profile-form__unit {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  color: #99a4a6;
+  font-family: "Courier New", monospace;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.health-profile-form__segments {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+  margin-top: 7px;
+  padding: 3px;
+  border-radius: 6px;
+  background: #edf1f2;
+}
+
+.health-profile-form__segments label {
+  min-width: 0;
+  cursor: pointer;
+}
+
+.health-profile-form__segments input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.health-profile-form__segments span {
+  min-height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #687679;
+  font-size: 10px;
+  font-weight: 650;
+  text-align: center;
+}
+
+.health-profile-form__segments input:checked + span {
+  border-color: #c7d4d5;
+  background: #ffffff;
+  color: #045f59;
+  box-shadow: 0 1px 4px rgba(30, 66, 70, 0.08);
+}
+
+.health-profile-form__segments input:focus-visible + span {
+  outline: 2px solid #168b83;
+  outline-offset: 1px;
+}
+
+.health-profile-form__field-error {
+  display: block;
+  margin-top: 5px;
+  color: #b43b31;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.health-profile-form__tag-box {
+  margin-top: 7px;
+  padding: 8px;
+  border: 1px solid #cdd8da;
+  border-radius: 5px;
+  background: #ffffff;
+}
+
+.health-profile-form__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.health-profile-form__tag {
+  min-height: 27px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px 3px 10px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.health-profile-form__tag--danger {
+  background: #fce6e2;
+  color: #92372f;
+}
+
+.health-profile-form__tag--neutral {
+  background: #e9eef0;
+  color: #526468;
+}
+
+.health-profile-form__tag--positive {
+  background: #dff2ec;
+  color: #176851;
+}
+
+.health-profile-form__tag--warning {
+  background: #fff0d8;
+  color: #8a5c16;
+}
+
+.health-profile-form__tag button {
+  width: 17px;
+  height: 17px;
+  display: grid;
+  padding: 0;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.health-profile-form__tag-entry {
+  display: flex;
+  align-items: center;
+}
+
+.health-profile-form__tags:not(:empty) + .health-profile-form__tag-entry {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid #edf1f2;
+}
+
+.health-profile-form__tag-entry input {
+  min-height: 30px;
+  padding: 0 8px;
+  border: 0;
+  box-shadow: none;
+}
+
+.health-profile-form__tag-entry input:focus {
+  box-shadow: none;
+}
+
+.health-profile-form__tag-entry button {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 4px;
+  background: #e8f1f0;
+  color: #076b65;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.health-profile-form__tag-entry button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.health-profile-form__submit-error {
+  margin: 18px 30px 0;
+  padding: 10px 12px;
+  border: 1px solid #efc4bf;
+  border-radius: 5px;
+  background: #fff4f2;
+  color: #9d3027;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.health-profile-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 18px 30px;
+  background: #f6f8f8;
+}
+
+.health-profile-form__button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 19px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.health-profile-form__button--primary {
+  min-width: 150px;
+  background: #064d49;
+  color: #ffffff;
+}
+
+.health-profile-form__button--primary:hover {
+  background: #033e3a;
+}
+
+.health-profile-form__button--secondary {
+  border: 1px solid #cad5d6;
+  background: #ffffff;
+  color: #526367;
+}
+
+.health-profile-form__button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+@media (max-width: 640px) {
+  .health-profile-form__section {
+    padding: 22px 20px 25px;
+  }
+
+  .health-profile-form__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .health-profile-form__full,
+  .health-profile-form__tag-field {
+    grid-column: auto;
+  }
+
+  .health-profile-form__segments {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .health-profile-form__actions {
+    padding: 16px 20px;
+  }
+}

@@ -1,28 +1,29 @@
 import { AuthShell } from "../../features/auth/ui/AuthShell";
 import { LoginCard } from "../../features/auth/ui/LoginCard";
-import { SignedInPanel } from "../../features/auth/ui/SignedInPanel";
-import { useAuth } from "../../features/auth/model/useAuth";
 
 import "./AuthPage.css";
 
-export function AuthPage() {
-  const { user, isLoading, error, logoutUser } = useAuth();
+type AuthPageProps = {
+  isLoading: boolean;
+  error: string | null;
+};
 
+export function AuthPage({ isLoading, error }: AuthPageProps) {
   return (
     <AuthShell>
-      {isLoading && !user ? (
+      {isLoading ? (
         <section className="auth-loading" aria-live="polite">
           Loading
         </section>
-      ) : user ? (
-        <SignedInPanel
-          user={user}
-          error={error}
-          isLoading={isLoading}
-          onLogout={logoutUser}
-        />
       ) : (
-        <LoginCard />
+        <>
+          {error ? (
+            <p className="auth-page__error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <LoginCard />
+        </>
       )}
     </AuthShell>
   );

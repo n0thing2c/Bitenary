@@ -11,3 +11,16 @@
   font-weight: 800;
   box-shadow: 0 20px 55px rgba(37, 51, 77, 0.08);
 }
+
+.auth-page__error {
+  width: min(100%, 338px);
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #f4c7c3;
+  border-radius: 6px;
+  background: #fff4f2;
+  color: #9d251b;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
