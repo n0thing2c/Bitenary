@@ -12,3 +12,8 @@ class DuplicateTokenPrefixError(MCPError):
 
 class MCPAuditUnavailableError(MCPError):
     """Raised when an invocation cannot be recorded before execution."""
+
+
+class ExternalServiceError(MCPError):
+    """Raised when a third-party service (e.g. Spoonacular) returns an
+    error or an unrecognised response during a tool invocation."""

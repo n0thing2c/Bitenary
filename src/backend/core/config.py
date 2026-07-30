@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     mcp_token_pepper: str
     mcp_token_ttl_days: int = Field(default=90, ge=1, le=3650)
 
+    spoonacular_api_key: str
+
     @property
     def frontend_origin_list(self) -> list[str]:
         return parse_frontend_origins(self.frontend_origins)
