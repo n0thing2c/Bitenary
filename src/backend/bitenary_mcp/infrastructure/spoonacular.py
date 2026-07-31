@@ -3,7 +3,11 @@ Async HTTP client for the Spoonacular Food & Nutrition API.
 
 Docs: https://spoonacular.com/food-api/docs
 
-Spoonacular is used exclusively to back the MCP nutrition-calculation tool.
+Spoonacular backs three MCP tools:
+- ``calculate_nutrition``: estimate macro-nutrients for a dish or ingredient.
+- ``search_recipes``: find recipes matching diet, intolerances, and calorie goals.
+- ``get_recipe_details``: fetch full ingredient list and step-by-step instructions by recipe ID.
+
 All calls are fire-and-forget relative to the caller; the caller owns
 error handling and timeouts.
 """
@@ -11,10 +15,18 @@ error handling and timeouts.
 from __future__ import annotations
 
 import logging
+import re
 
 import httpx
 
-from bitenary_mcp.domain.schemas import NutrientValue, NutritionInformation
+from bitenary_mcp.domain.schemas import (
+    NutrientValue,
+    NutritionInformation,
+    RecipeSummary,
+    RecipeDetails,
+    RecipeIngredient,
+    RecipeInstructionStep,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -138,6 +150,105 @@ class SpoonacularClient:
             carbs=NutrientValue(amount=round(total_carb, 2), unit="g"),
         )
 
+    async def search_recipes(
+        self,
+        *,
+        query: str = "",
+        diet: str = "",
+        intolerances: str = "",
+        include_ingredients: str = "",
+        max_calories: int | None = None,
+        min_protein: int | None = None,
+        limit: int = 3,
+    ) -> list[RecipeSummary]:
+        """Search for recipes using Spoonacular's complexSearch endpoint.
+
+        Args:
+            query: Free-text search term (e.g. ``"chicken soup"``).
+            diet: Diet label (e.g. ``"vegetarian"``, ``"keto"``, ``"paleo"``).
+            intolerances: Comma-separated intolerances to exclude
+                (e.g. ``"gluten, dairy"``).
+            include_ingredients: Comma-separated ingredients that must appear
+                in the recipe (e.g. ``"tomato, garlic"``).
+            max_calories: Upper bound on calories per serving.
+            min_protein: Lower bound on protein (grams) per serving.
+            limit: Maximum number of recipes to return (default 3, max 5).
+
+        Returns:
+            A list of :class:`RecipeSummary` objects with title, image,
+            prep time, and per-serving macro-nutrients.
+        """
+        if self._client is None:
+            raise RuntimeError(
+                "SpoonacularClient must be used as an async context manager."
+            )
+
+        limit = min(limit, 5)  # Hard-cap to protect free-tier quota
+        params: dict[str, str | int] = {
+            "number": limit,
+            "addRecipeNutrition": "true",
+            "addRecipeInformation": "true",
+        }
+        if query:
+            params["query"] = query
+        if diet:
+            params["diet"] = diet
+        if intolerances:
+            params["intolerances"] = intolerances
+        if include_ingredients:
+            params["includeIngredients"] = include_ingredients
+        if max_calories is not None:
+            params["maxCalories"] = max_calories
+        if min_protein is not None:
+            params["minProtein"] = min_protein
+
+        logger.debug("Spoonacular complexSearch params: %s", params)
+        response = await self._client.get("/recipes/complexSearch", params=params)
+
+        if response.status_code != 200:
+            raise SpoonacularError(
+                f"Spoonacular complexSearch error {response.status_code}: {response.text[:200]}"
+            )
+
+        data = response.json()
+        results = data.get("results", [])
+        return [_parse_recipe_summary(item) for item in results]
+
+    async def get_recipe_details(self, recipe_id: int) -> RecipeDetails:
+        """Fetch full ingredient list and step-by-step cooking instructions for a recipe.
+
+        Args:
+            recipe_id: The numeric Spoonacular recipe ID (obtained from
+                ``search_recipes``).
+
+        Returns:
+            A :class:`RecipeDetails` object containing the title, source URL,
+            all ingredients with quantities, and numbered cooking steps.
+
+        Raises:
+            SpoonacularError: If the API returns a non-200 status or the
+                recipe ID is not found.
+        """
+        if self._client is None:
+            raise RuntimeError(
+                "SpoonacularClient must be used as an async context manager."
+            )
+
+        logger.debug("Spoonacular recipe information: id=%s", recipe_id)
+        response = await self._client.get(
+            f"/recipes/{recipe_id}/information",
+            params={"includeNutrition": "false"},
+        )
+
+        if response.status_code == 404:
+            raise SpoonacularError(f"Recipe with id={recipe_id} was not found.")
+        if response.status_code != 200:
+            raise SpoonacularError(
+                f"Spoonacular recipe info error {response.status_code}: {response.text[:200]}"
+            )
+
+        return _parse_recipe_details(response.json())
+
 
 # ------------------------------------------------------------------
 # Private helpers
@@ -167,4 +278,111 @@ def _parse_guess_nutrition_response(data: dict) -> NutritionInformation:
     except (KeyError, TypeError, ValueError) as exc:
         raise SpoonacularError(
             f"Unexpected Spoonacular response format: {exc}"
+        ) from exc
+
+
+def _get_nutrient_amount(nutrients: list[dict], name: str) -> float:
+    """Find and return the amount of a named nutrient from a nutrients list."""
+    for n in nutrients:
+        if n.get("name", "").lower() == name.lower():
+            return round(float(n.get("amount", 0)), 2)
+    return 0.0
+
+
+def _parse_recipe_summary(data: dict) -> RecipeSummary:
+    """Convert a single complexSearch result item into a RecipeSummary."""
+    try:
+        nutrients: list[dict] = (
+            data.get("nutrition", {}).get("nutrients", [])
+        )
+        return RecipeSummary(
+            id=int(data["id"]),
+            title=str(data.get("title", "")),
+            image=str(data.get("image", "")),
+            ready_in_minutes=int(data.get("readyInMinutes", 0)),
+            calories=_get_nutrient_amount(nutrients, "Calories"),
+            protein=_get_nutrient_amount(nutrients, "Protein"),
+            fat=_get_nutrient_amount(nutrients, "Fat"),
+            carbs=_get_nutrient_amount(nutrients, "Carbohydrates"),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise SpoonacularError(
+            f"Unexpected complexSearch recipe format: {exc}"
+        ) from exc
+
+
+def _strip_html(text: str) -> str:
+    """Remove HTML tags and decode common HTML entities from a string.
+
+    Spoonacular occasionally embeds HTML markup (e.g. ``<b>``, ``<a href>``
+    anchor tags) inside the ``instructions`` field.  Stripping those tags
+    produces clean, LLM-friendly plain text.
+    """
+    # Remove HTML tags
+    clean = re.sub(r"<[^>]+>", "", text)
+    # Decode common HTML entities
+    entities = {
+        "&amp;": "&",
+        "&lt;": "<",
+        "&gt;": ">",
+        "&quot;": '"',
+        "&#39;": "'",
+        "&nbsp;": " ",
+    }
+    for entity, char in entities.items():
+        clean = clean.replace(entity, char)
+    # Collapse extra whitespace
+    return " ".join(clean.split()).strip()
+
+
+def _parse_recipe_details(data: dict) -> RecipeDetails:
+    """Convert a raw Spoonacular /recipes/{id}/information response into RecipeDetails."""
+    try:
+        # --- Ingredients ---
+        raw_ingredients = data.get("extendedIngredients", [])
+        ingredients = tuple(
+            RecipeIngredient(
+                name=str(ing.get("name", "")),
+                original=str(ing.get("original", "")),
+                amount=round(float(ing.get("amount", 0)), 2),
+                unit=str(ing.get("unit", "")),
+            )
+            for ing in raw_ingredients
+        )
+
+        # --- Instructions ---
+        # Spoonacular returns analyzedInstructions as a list of sections.
+        # Each section has a list of steps. We flatten all sections into one list.
+        steps: list[RecipeInstructionStep] = []
+        analyzed = data.get("analyzedInstructions", [])
+        step_counter = 1
+        for section in analyzed:
+            for step in section.get("steps", []):
+                raw_text = str(step.get("step", ""))
+                steps.append(
+                    RecipeInstructionStep(
+                        number=step_counter,
+                        step=_strip_html(raw_text),
+                    )
+                )
+                step_counter += 1
+
+        # Fallback: use raw instructions string if no analyzed instructions present
+        if not steps and data.get("instructions"):
+            raw_text = _strip_html(str(data["instructions"]))
+            steps.append(RecipeInstructionStep(number=1, step=raw_text))
+
+        return RecipeDetails(
+            id=int(data["id"]),
+            title=str(data.get("title", "")),
+            source_url=str(data.get("sourceUrl", "")),
+            image=str(data.get("image", "")),
+            ready_in_minutes=int(data.get("readyInMinutes", 0)),
+            servings=int(data.get("servings", 1)),
+            ingredients=ingredients,
+            instructions=tuple(steps),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise SpoonacularError(
+            f"Unexpected recipe details format: {exc}"
         ) from exc
