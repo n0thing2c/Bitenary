@@ -10,6 +10,8 @@ from agents.orchestrator import BitenaryChatOrchestrator
 from api.routers import router as api_router
 from bitenary_mcp.server import create_mcp_server
 from core.config import Settings, get_settings
+from core.database import AsyncSessionLocal
+from ingredients.infrastructure.sqlalchemy_ingredients import SqlAlchemyIngredientRepository
 
 
 def configure_logging(settings: Settings) -> None:
@@ -27,6 +29,22 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        # Seed ingredient master on first startup (idempotent).
+        # Wrapped in try/except so the app still starts in test environments
+        # where the DB table hasn't been created yet (no migration run).
+        try:
+            async with AsyncSessionLocal() as session:
+                repo = SqlAlchemyIngredientRepository(session)
+                seeded = await repo.seed_from_json()
+                if seeded:
+                    logging.getLogger(__name__).info(
+                        "Ingredient seed complete: %d rows inserted.", seeded
+                    )
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger(__name__).warning(
+                "Ingredient seed skipped (table not ready?): %s", exc
+            )
+
         orchestrator = BitenaryChatOrchestrator(settings)
         _app.state.orchestrator = orchestrator
         await orchestrator.startup()
