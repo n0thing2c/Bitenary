@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette import status
 
+from agents.orchestrator import BitenaryChatOrchestrator
 from api.routers import router as api_router
 from bitenary_mcp.server import create_mcp_server
 from core.config import Settings, get_settings
@@ -26,8 +27,12 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        orchestrator = BitenaryChatOrchestrator(settings)
+        _app.state.orchestrator = orchestrator
+        await orchestrator.startup()
         async with mcp_server.session_manager.run():
             yield
+        await orchestrator.shutdown()
 
     app = FastAPI(
         title=settings.app_name,

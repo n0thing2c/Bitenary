@@ -5,9 +5,12 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import AnyHttpUrl
 
+from bitenary_mcp.infrastructure.spoonacular import SpoonacularClient
 from bitenary_mcp.infrastructure.token_verifier import BitenaryMCPTokenVerifier
 from bitenary_mcp.service.auditing import MCPInvocationAuditor
 from bitenary_mcp.service.tokens import MCPTokenCodec
+from bitenary_mcp.tools.nutrition import build_nutrition_tool
+from bitenary_mcp.tools.recipe import build_recipe_search_tool, build_recipe_details_tool
 from bitenary_mcp.tools.status import build_status_tool
 from core.config import Settings
 from core.database import AsyncSessionLocal
@@ -20,6 +23,10 @@ def create_mcp_server(settings: Settings) -> FastMCP:
         token_codec=token_codec,
     )
     auditor = MCPInvocationAuditor(AsyncSessionLocal)
+
+    # Spoonacular client is kept open for the lifetime of the server process
+    # to reuse the underlying connection pool across tool invocations.
+    spoonacular = SpoonacularClient(settings.spoonacular_api_key)
 
     mcp_server = FastMCP(
         name="Bitenary",
@@ -36,6 +43,9 @@ def create_mcp_server(settings: Settings) -> FastMCP:
         transport_security=transport_security(settings),
     )
     mcp_server.add_tool(build_status_tool(auditor), name="get_server_status")
+    mcp_server.add_tool(build_nutrition_tool(auditor, spoonacular), name="calculate_nutrition")
+    mcp_server.add_tool(build_recipe_search_tool(auditor, spoonacular), name="search_recipes")
+    mcp_server.add_tool(build_recipe_details_tool(auditor, spoonacular), name="get_recipe_details")
     return mcp_server
 
 
