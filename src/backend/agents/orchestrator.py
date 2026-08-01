@@ -21,7 +21,7 @@ User message
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -29,8 +29,13 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
 from redis import asyncio as aioredis
 
-from agents.prompts import SYSTEM_PROMPT
+from agents.prompts import build_system_prompt
 from core.config import Settings
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from health_profile.domain.entities import HealthProfile
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +46,8 @@ _GEMINI_MODEL = "gemini-3.0-flash"
 # Each "turn" = 1 HumanMessage + 1 AIMessage, so 10 turns = 20 messages.
 _MAX_HISTORY_TURNS = 10
 
-# Redis key template: chat:v1:<session_id>
+# Redis key template: chat:v1:<user_id>:<session_id>
+# Using user_id prefix ensures one user cannot access another user's history.
 _REDIS_KEY_PREFIX = "chat:v1:"
 
 
@@ -94,13 +100,24 @@ class BitenaryChatOrchestrator:
     # Public API
     # ------------------------------------------------------------------
 
-    async def chat(self, session_id: str, user_message: str) -> str:
+    async def chat(
+        self,
+        *,
+        user_id: "UUID",
+        session_id: str,
+        user_message: str,
+        health_profile: "HealthProfile | None" = None,
+    ) -> str:
         """Process one chat turn and return the AI's response.
 
         Args:
-            session_id: A unique identifier for the conversation (e.g. user
-                ID or anonymous session token). Used as the Redis key.
+            user_id: The authenticated user's UUID (used as Redis namespace).
+            session_id: A secondary key to support multiple chat sessions
+                per user (e.g. a frontend-generated UUID).
             user_message: The raw message typed by the user.
+            health_profile: The user's health profile, or ``None`` if the
+                user has not completed onboarding. The profile is injected
+                into the system prompt to personalise every AI response.
 
         Returns:
             A plain-text string containing the assistant's reply.
@@ -114,38 +131,41 @@ class BitenaryChatOrchestrator:
             )
 
         # 1. Load history from Redis
-        history = await self._load_history(session_id)
-        logger.debug("Session %s: loaded %d history messages.", session_id, len(history))
+        history = await self._load_history(user_id, session_id)
+        logger.debug("Session %s/%s: loaded %d history messages.", user_id, session_id, len(history))
 
-        # 2. Build the full messages list for the agent
+        # 2. Build personalised system prompt using the user's health profile
+        system_prompt = build_system_prompt(health_profile)
+
+        # 3. Build the full messages list for the agent
         messages: list[BaseMessage] = [
-            SystemMessage(content=SYSTEM_PROMPT),
+            SystemMessage(content=system_prompt),
             *history,
             HumanMessage(content=user_message),
         ]
 
-        # 3. Connect to MCP Server and invoke the agent
+        # 4. Connect to MCP Server and invoke the agent
         mcp_config = self._build_mcp_config()
         async with MultiServerMCPClient(mcp_config) as mcp_client:
             tools = mcp_client.get_tools()
-            logger.debug("Session %s: loaded %d MCP tools.", session_id, len(tools))
+            logger.debug("Session %s/%s: loaded %d MCP tools.", user_id, session_id, len(tools))
 
             agent = create_react_agent(self._llm, tools)
             result: dict[str, Any] = await agent.ainvoke({"messages": messages})
 
-        # 4. Extract the final text reply
+        # 5. Extract the final text reply
         reply = _extract_reply(result)
 
-        # 5. Persist this turn back to Redis
-        await self._save_turn(session_id, user_message, reply)
-        logger.debug("Session %s: saved turn to Redis.", session_id)
+        # 6. Persist this turn back to Redis
+        await self._save_turn(user_id, session_id, user_message, reply)
+        logger.debug("Session %s/%s: saved turn to Redis.", user_id, session_id)
 
         return reply
 
-    async def clear_history(self, session_id: str) -> None:
+    async def clear_history(self, user_id: "UUID", session_id: str) -> None:
         """Delete the entire conversation history for a session."""
         if self._redis:
-            await self._redis.delete(_REDIS_KEY_PREFIX + session_id)
+            await self._redis.delete(_make_redis_key(user_id, session_id))
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -166,9 +186,11 @@ class BitenaryChatOrchestrator:
             }
         }
 
-    async def _load_history(self, session_id: str) -> list[BaseMessage]:
+    async def _load_history(
+        self, user_id: "UUID", session_id: str
+    ) -> list[BaseMessage]:
         """Return the last N turns of conversation from Redis."""
-        key = _REDIS_KEY_PREFIX + session_id
+        key = _make_redis_key(user_id, session_id)
         # Messages are stored as a Redis list: [role, content, role, content, ...]
         raw: list[str] = await self._redis.lrange(key, 0, -1)  # type: ignore[union-attr]
 
@@ -187,14 +209,20 @@ class BitenaryChatOrchestrator:
 
     async def _save_turn(
         self,
+        user_id: "UUID",
         session_id: str,
         user_message: str,
         ai_reply: str,
     ) -> None:
         """Append this turn to the Redis list and set a 24-hour expiry."""
-        key = _REDIS_KEY_PREFIX + session_id
+        key = _make_redis_key(user_id, session_id)
         await self._redis.rpush(key, "human", user_message, "ai", ai_reply)  # type: ignore[union-attr]
         await self._redis.expire(key, 86400)  # 24 hours TTL
+
+
+def _make_redis_key(user_id: "UUID", session_id: str) -> str:
+    """Build a scoped Redis key to prevent cross-user data leakage."""
+    return f"{_REDIS_KEY_PREFIX}{user_id}:{session_id}"
 
 
 def _extract_reply(agent_result: dict[str, Any]) -> str:
