@@ -6,6 +6,13 @@ import sys
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_ROOT))
 
+# Enable asyncio mode for all async test functions globally.
+# This removes the need to mark every async test with @pytest.mark.asyncio.
+import pytest
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "asyncio: mark test as async")
+
 
 TEST_ENV = {
     "APP_NAME": "Bitenary API",
