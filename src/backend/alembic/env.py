@@ -19,6 +19,9 @@ from core.database import Base  # noqa: E402
 from bitenary_mcp.infrastructure import sqlalchemy_mcp  # noqa: E402,F401
 from health_profile.infrastructure import sqlalchemy_profiles  # noqa: E402,F401
 from identity.infrastructure import sqlalchemy_users  # noqa: E402,F401
+from ingredients.infrastructure import sqlalchemy_ingredients  # noqa: E402,F401
+from virtual_fridge.infrastructure import sqlalchemy_fridge  # noqa: E402,F401
+from virtual_fridge.infrastructure import sqlalchemy_notifications  # noqa: E402,F401
 
 
 config = context.config

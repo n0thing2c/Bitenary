@@ -31,7 +31,15 @@ export function AppShell({
 
         <nav className="app-sidebar__nav" aria-label="Primary navigation">
           <DisabledNavItem icon="chat" label="Chat" />
-          <DisabledNavItem icon="fridge" label="Virtual Fridge" />
+          <NavLink
+            className={({ isActive }) =>
+              `app-sidebar__link${isActive ? " app-sidebar__link--active" : ""}`
+            }
+            to="/fridge"
+          >
+            <NavigationIcon name="fridge" />
+            <span>Virtual Fridge</span>
+          </NavLink>
           <NavLink
             className={({ isActive }) =>
               `app-sidebar__link${isActive ? " app-sidebar__link--active" : ""}`
@@ -81,6 +89,34 @@ export function AppShell({
           </button>
         </header>
         {children}
+        <nav className="app-mobile-nav" aria-label="Mobile navigation">
+          <span className="app-mobile-nav__item app-mobile-nav__item--disabled">
+            <NavigationIcon name="chat" />
+            <span>Chat</span>
+          </span>
+          <NavLink
+            className={({ isActive }) =>
+              `app-mobile-nav__item${isActive ? " app-mobile-nav__item--active" : ""}`
+            }
+            to="/fridge"
+          >
+            <NavigationIcon name="fridge" />
+            <span>Fridge</span>
+          </NavLink>
+          <NavLink
+            className={({ isActive }) =>
+              `app-mobile-nav__item${isActive ? " app-mobile-nav__item--active" : ""}`
+            }
+            to="/profile"
+          >
+            <NavigationIcon name="profile" />
+            <span>Profile</span>
+          </NavLink>
+          <span className="app-mobile-nav__item app-mobile-nav__item--disabled">
+            <NavigationIcon name="settings" />
+            <span>Settings</span>
+          </span>
+        </nav>
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ import { AppShell } from "../features/health-profile/ui/AppShell";
 import { AuthPage } from "../pages/auth/AuthPage";
 import { HealthProfileSetupPage } from "../pages/health-profile-setup/HealthProfileSetupPage";
 import { HealthProfilePage } from "../pages/health-profile/HealthProfilePage";
+import { VirtualFridgePage } from "../pages/virtual-fridge/VirtualFridgePage";
 
 export function App() {
   const auth = useAuth();
@@ -140,6 +141,22 @@ function ProfileRoutes({
                 error={profile.error}
                 onSave={saveProfile}
               />
+            </AppShell>
+          )
+        }
+      />
+      <Route
+        path="/fridge"
+        element={
+          data.onboarding_state === "NOT_STARTED" ? (
+            <Navigate replace to="/profile/setup" />
+          ) : (
+            <AppShell
+              user={user}
+              isLoggingOut={isLoggingOut}
+              onLogout={onLogout}
+            >
+              <VirtualFridgePage />
             </AppShell>
           )
         }

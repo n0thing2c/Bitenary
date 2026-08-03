@@ -43,6 +43,9 @@ TEST_ENV = {
     "OIDC_STATE_SECRET": "test-oidc-state-secret",
     "CSRF_SECRET": "test-csrf-secret",
     "MCP_TOKEN_PEPPER": "test-mcp-token-pepper",
+    "SPOONACULAR_API_KEY": "test-spoonacular-key",
+    "GOOGLE_API_KEY": "test-google-key",
+    "REDIS_URL": "redis://localhost:6379",
 }
 
 

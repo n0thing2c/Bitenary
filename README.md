@@ -172,6 +172,7 @@ More backend commands and troubleshooting are documented in the
 | --- | --- |
 | [Documentation index](readme/README.md) | Entry point for all detailed project guides |
 | [Backend development](readme/backend-development.md) | Environment, migrations, server, tests and troubleshooting |
+| [Backend Virtual Fridge](readme/backend-virtual-fridge.md) | Inventory CRUD, expiry notifications, migrations and testing |
 | [Web authentication](readme/web-authentication.md) | Authentik OIDC setup, auth flow, cookies and endpoint verification |
 | [MCP authentication](readme/mcp-authentication.md) | Personal tokens, client configuration, status-tool smoke test and auditing |
 
