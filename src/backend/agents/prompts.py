@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from health_profile.domain.entities import HealthProfile
+    from virtual_fridge.domain.entities import FridgeItem
 
 # ---------------------------------------------------------------------------
 # Static base — applies to every user regardless of profile
@@ -44,6 +45,11 @@ any food item. Never guess or hallucinate numbers.
 suggestions, or "what can I cook with X".
    - You MUST call `get_recipe_details` when a user selects a specific recipe \
 and wants to know the ingredients or step-by-step instructions.
+   - You MUST call `get_fridge_inventory` when the user asks what they have \
+at home, wants recipe suggestions based on available ingredients, or wants to \
+plan a meal using their existing food. Note: if expiring items are already \
+listed below in the URGENT block, those represent only the soon-to-expire \
+subset — call the tool to get the FULL fridge contents.
 
 2. **Language.** Always respond in the same language the user writes in. \
 If the user writes in Vietnamese, reply in Vietnamese.
@@ -86,6 +92,29 @@ You MUST take this into account in EVERY response:
 
 """
 
+# Expiring items block — injected dynamically only when items exist
+_EXPIRING_BLOCK_HEADER = """
+---
+## ⚠️ URGENT: Ingredients Expiring Soon (Proactive Reminder)
+
+The following items in the user's fridge are about to expire. You should:
+- **Gently remind** the user at a natural point in the conversation \
+(do NOT make it the first thing you say unless the user is already \
+asking about food or cooking).
+- **Proactively suggest** recipes that use these ingredients, especially \
+if the user asks what to eat or cook.
+- Do NOT suggest that the user throw away these items unless they are already \
+expired. Always prefer recipes that use them first.
+
+"""
+
+_EXPIRING_BLOCK_FOOTER = """
+> [!NOTE]
+> This is only a summary of items expiring soon. If the user asks about their
+> full fridge contents, call the `get_fridge_inventory` tool to get all items.
+"""
+
+
 _ALLERGY_WARNING = """\
 
 > [!CRITICAL SAFETY RULE]
@@ -102,24 +131,37 @@ safe alternative instead.
 # ---------------------------------------------------------------------------
 
 
-def build_system_prompt(profile: "HealthProfile | None") -> str:
+def build_system_prompt(
+    profile: "HealthProfile | None",
+    *,
+    expiring_items: "tuple[FridgeItem, ...] | None" = None,
+) -> str:
     """Build the full system prompt for the LLM.
 
-    If a ``HealthProfile`` is available, the profile context block is appended
-    after the base prompt so the AI knows exactly who it is talking to.
+    Combines the static base prompt with optional context blocks:
+    - Health profile block (injected when ``profile`` is not ``None``)
+    - Expiring fridge items block (injected when ``expiring_items`` is not
+      empty, acting as a proactive reminder to the AI)
 
     Args:
         profile: The authenticated user's health profile, or ``None`` for
             anonymous / onboarding-skipped users.
+        expiring_items: A tuple of fridge items that are expiring soon.
+            Pass ``None`` or an empty tuple when there are no urgent items.
 
     Returns:
         A complete system prompt string ready to be injected as a
         ``SystemMessage``.
     """
-    if profile is None:
-        return _BASE_PROMPT
+    prompt = _BASE_PROMPT
 
-    return _BASE_PROMPT + _PROFILE_BLOCK_HEADER + _format_profile_block(profile)
+    if profile is not None:
+        prompt += _PROFILE_BLOCK_HEADER + _format_profile_block(profile)
+
+    if expiring_items:
+        prompt += _EXPIRING_BLOCK_HEADER + _format_expiring_block(expiring_items) + _EXPIRING_BLOCK_FOOTER
+
+    return prompt
 
 
 # ---------------------------------------------------------------------------
@@ -183,3 +225,30 @@ _GOAL_LABELS: dict[str, str] = {
 
 def _format_goal(goal: object) -> str:
     return _GOAL_LABELS.get(str(goal.value), str(goal))  # type: ignore[union-attr]
+
+
+def _format_expiring_block(items: "tuple[FridgeItem, ...]") -> str:
+    """Render expiring fridge items as a compact bullet list for the LLM.
+
+    Each line follows the pattern:
+        - {quantity} {unit} {name} [{food_state}] — expires {date} ({N} day(s) left)
+    """
+    from virtual_fridge.domain.entities import expiry_status_for
+
+    today = datetime.now(UTC).date()
+    lines: list[str] = []
+    for item in items:
+        status = expiry_status_for(item.expiry_date, today=today)
+        days = (item.expiry_date - today).days
+        state_str = f" [{item.food_state.value}]" if item.food_state else ""
+        if days == 0:
+            when = "expires TODAY"
+        elif days < 0:
+            when = f"EXPIRED {abs(days)} day(s) ago"
+        else:
+            when = f"expires in {days} day(s) ({item.expiry_date.isoformat()})"
+        lines.append(
+            f"- **{item.ingredient.name}**{state_str}: "
+            f"{item.quantity} {item.unit} — {when} [Status: {status.value}]"
+        )
+    return "\n".join(lines) + "\n"
