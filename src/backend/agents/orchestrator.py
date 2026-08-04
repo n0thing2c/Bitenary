@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from uuid import UUID
 
     from health_profile.domain.entities import HealthProfile
+    from virtual_fridge.domain.entities import FridgeItem
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,7 @@ class BitenaryChatOrchestrator:
         session_id: str,
         user_message: str,
         health_profile: "HealthProfile | None" = None,
+        expiring_items: "tuple[FridgeItem, ...] | None" = None,
     ) -> str:
         """Process one chat turn and return the AI's response.
 
@@ -118,6 +120,10 @@ class BitenaryChatOrchestrator:
             health_profile: The user's health profile, or ``None`` if the
                 user has not completed onboarding. The profile is injected
                 into the system prompt to personalise every AI response.
+            expiring_items: Fridge items that are expiring soon (Push context).
+                When provided, the system prompt will proactively instruct the
+                AI to remind the user and prioritise these ingredients.
+                Pass ``None`` (or omit) when no items are expiring.
 
         Returns:
             A plain-text string containing the assistant's reply.
@@ -135,7 +141,8 @@ class BitenaryChatOrchestrator:
         logger.debug("Session %s/%s: loaded %d history messages.", user_id, session_id, len(history))
 
         # 2. Build personalised system prompt using the user's health profile
-        system_prompt = build_system_prompt(health_profile)
+        # and any fridge items that are expiring soon (proactive push context).
+        system_prompt = build_system_prompt(health_profile, expiring_items=expiring_items)
 
         # 3. Build the full messages list for the agent
         messages: list[BaseMessage] = [

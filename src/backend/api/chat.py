@@ -10,6 +10,8 @@ personalised (goals, allergies, dietary restrictions, etc.).
 
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from starlette import status
@@ -19,6 +21,9 @@ from health_profile.service.profiles import HealthProfileService
 from health_profile.wiring import get_health_profile_service
 from identity.domain.entities import CurrentUser
 from identity.wiring import get_current_user
+from virtual_fridge.domain.entities import ExpiryStatus, FridgeItem, expiry_status_for
+from virtual_fridge.service.fridge import VirtualFridgeService
+from virtual_fridge.wiring import get_virtual_fridge_service
 
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -76,12 +81,14 @@ async def chat(
     body: ChatRequest,
     current_user: CurrentUser = Depends(get_current_user),
     profile_service: HealthProfileService = Depends(get_health_profile_service),
+    fridge_service: VirtualFridgeService = Depends(get_virtual_fridge_service),
 ) -> ChatResponse:
     """Main chat endpoint.
 
     1. Authenticates the user via cookie (via ``get_current_user``).
     2. Fetches the user's health profile (if onboarding is complete).
-    3. Passes everything to the Orchestrator which calls Gemini + MCP tools.
+    3. Fetches any fridge items that are expiring soon (Push context).
+    4. Passes everything to the Orchestrator which calls Gemini + MCP tools.
     """
     orchestrator = request.app.state.orchestrator
 
@@ -90,12 +97,19 @@ async def chat(
         profile_service, current_user
     )
 
+    # Fetch expiring fridge items for proactive push context.
+    # Errors are swallowed so a DB hiccup never blocks the chat feature.
+    expiring_items: tuple[FridgeItem, ...] = await _resolve_expiring_items(
+        fridge_service, current_user
+    )
+
     try:
         reply = await orchestrator.chat(
             user_id=current_user.user_id,
             session_id=body.session_id,
             user_message=body.message,
             health_profile=health_profile,
+            expiring_items=expiring_items or None,
         )
     except Exception as exc:
         raise HTTPException(
@@ -149,3 +163,32 @@ async def _resolve_profile(
         return None
     except Exception:
         return None
+
+
+async def _resolve_expiring_items(
+    service: VirtualFridgeService,
+    user: CurrentUser,
+) -> tuple[FridgeItem, ...]:
+    """Return only items that are expiring today or very soon.
+
+    We filter in-memory (not in SQL) because ``get_available_ingredients``
+    already limits results to non-expired items and is indexed on
+    ``(user_id, expiry_date)``. The expected result set is small (< 100 rows)
+    so this is fast and keeps the query simple.
+
+    Errors are swallowed — the chat feature must never depend on fridge data.
+    """
+    try:
+        today = date.today()
+        urgent_statuses = {ExpiryStatus.EXPIRING_SOON, ExpiryStatus.EXPIRING_TODAY}
+        all_items = await service.get_available_ingredients(
+            user_id=user.user_id,
+            today=today,
+        )
+        return tuple(
+            item
+            for item in all_items
+            if expiry_status_for(item.expiry_date, today=today) in urgent_statuses
+        )
+    except Exception:
+        return ()
