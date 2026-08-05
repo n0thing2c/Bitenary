@@ -10,6 +10,7 @@ from bitenary_mcp.infrastructure.token_verifier import BitenaryMCPTokenVerifier
 from bitenary_mcp.service.auditing import MCPInvocationAuditor
 from bitenary_mcp.service.tokens import MCPTokenCodec
 from bitenary_mcp.tools.fridge import build_fridge_inventory_tool
+from bitenary_mcp.tools.meal_plan import build_save_meal_plan_tool
 from bitenary_mcp.tools.nutrition import build_nutrition_tool
 from bitenary_mcp.tools.recipe import build_recipe_search_tool, build_recipe_details_tool
 from bitenary_mcp.tools.status import build_status_tool
@@ -56,6 +57,14 @@ def create_mcp_server(settings: Settings) -> FastMCP:
             warning_days=settings.fridge_expiry_warning_days,
         ),
         name="get_fridge_inventory",
+    )
+    # Meal Plan tool: AI calls this only after user explicitly approves a plan.
+    mcp_server.add_tool(
+        build_save_meal_plan_tool(
+            auditor=auditor,
+            session_factory=AsyncSessionLocal,
+        ),
+        name="save_meal_plan",
     )
     return mcp_server
 
