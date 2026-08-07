@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Default Gemini model — can be overridden via settings in the future.
-_GEMINI_MODEL = "gemini-3.0-flash"
+_GEMINI_MODEL = "gemini-3-flash-preview"
 
 # Maximum conversation history turns to send to Gemini.
 # Each "turn" = 1 HumanMessage + 1 AIMessage, so 10 turns = 20 messages.
@@ -163,12 +163,19 @@ class BitenaryChatOrchestrator:
 
         # 4. Connect to MCP Server and invoke the agent
         mcp_config = self._build_mcp_config(user_id)
-        async with MultiServerMCPClient(mcp_config) as mcp_client:
-            tools = mcp_client.get_tools()
+        
+        mcp_client = MultiServerMCPClient(mcp_config)
+        try:
+            tools = await mcp_client.get_tools()
             logger.debug("Session %s/%s: loaded %d MCP tools.", user_id, session_id, len(tools))
-
+    
             agent = create_react_agent(self._llm, tools)
             result: dict[str, Any] = await agent.ainvoke({"messages": messages})
+        finally:
+            if hasattr(mcp_client, "close"):
+                await mcp_client.close()
+            elif hasattr(mcp_client, "aclose"):
+                await mcp_client.aclose()
 
         # 5. Extract the final text reply
         reply = _extract_reply(result)

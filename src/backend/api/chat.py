@@ -112,6 +112,9 @@ async def chat(
             expiring_items=expiring_items or None,
         )
     except Exception as exc:
+        import traceback
+        import logging
+        logging.getLogger(__name__).error("Chat orchestrator failed:\n%s", traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"AI service temporarily unavailable: {exc}",
