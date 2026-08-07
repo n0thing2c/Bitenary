@@ -223,8 +223,12 @@ class TestOrchestratorNotStarted:
         """chat() must raise RuntimeError before startup() is called."""
         from core.config import get_settings
         from agents.orchestrator import BitenaryChatOrchestrator
+        from bitenary_mcp.service.tokens import MCPTokenCodec
 
-        orchestrator = BitenaryChatOrchestrator(get_settings())
+        orchestrator = BitenaryChatOrchestrator(
+            get_settings(),
+            MCPTokenCodec(get_settings().mcp_token_pepper),
+        )
 
         import asyncio
 
@@ -254,8 +258,13 @@ class TestOrchestratorHappyPath:
     def orchestrator(self, mock_redis):
         from core.config import get_settings
         from agents.orchestrator import BitenaryChatOrchestrator
+        from bitenary_mcp.service.tokens import MCPTokenCodec
 
-        orch = BitenaryChatOrchestrator(get_settings())
+        settings = get_settings()
+        orch = BitenaryChatOrchestrator(
+            settings,
+            MCPTokenCodec(settings.mcp_token_pepper),
+        )
         orch._redis = mock_redis  # inject without real Redis connection
         return orch
 

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -30,11 +31,10 @@ from langgraph.prebuilt import create_react_agent
 from redis import asyncio as aioredis
 
 from agents.prompts import build_system_prompt
+from bitenary_mcp.service.tokens import MCPTokenCodec
 from core.config import Settings
 
 if TYPE_CHECKING:
-    from uuid import UUID
-
     from health_profile.domain.entities import HealthProfile
     from virtual_fridge.domain.entities import FridgeItem
 
@@ -68,8 +68,9 @@ class BitenaryChatOrchestrator:
         )
     """
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, token_codec: MCPTokenCodec) -> None:
         self._settings = settings
+        self._token_codec = token_codec
         self._llm = ChatGoogleGenerativeAI(
             model=_GEMINI_MODEL,
             google_api_key=settings.google_api_key,
@@ -152,7 +153,7 @@ class BitenaryChatOrchestrator:
         ]
 
         # 4. Connect to MCP Server and invoke the agent
-        mcp_config = self._build_mcp_config()
+        mcp_config = self._build_mcp_config(user_id)
         async with MultiServerMCPClient(mcp_config) as mcp_client:
             tools = mcp_client.get_tools()
             logger.debug("Session %s/%s: loaded %d MCP tools.", user_id, session_id, len(tools))
@@ -178,18 +179,25 @@ class BitenaryChatOrchestrator:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _build_mcp_config(self) -> dict[str, Any]:
+    def _build_mcp_config(self, user_id: "UUID") -> dict[str, Any]:
         """Build the MultiServerMCPClient config pointing to our own MCP server.
 
         We connect to the Bitenary MCP server via Streamable HTTP.
         This guarantees we speak the full MCP protocol (list_tools → call_tool)
         just like any external agent would.
+
+        An ephemeral internal token is generated per request and scoped to
+        ``user_id``. It is verified server-side via HMAC without a DB hit.
         """
         mcp_server_url = self._settings.backend_public_url.rstrip("/") + "/mcp"
+        token = self._token_codec.generate_internal_token(user_id)
         return {
             "bitenary": {
                 "transport": "streamable_http",
                 "url": mcp_server_url,
+                "headers": {
+                    "Authorization": f"Bearer {token}",
+                },
             }
         }
 

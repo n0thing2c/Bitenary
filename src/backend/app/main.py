@@ -9,6 +9,7 @@ from starlette import status
 from agents.orchestrator import BitenaryChatOrchestrator
 from api.routers import router as api_router
 from bitenary_mcp.server import create_mcp_server
+from bitenary_mcp.service.tokens import MCPTokenCodec
 from core.config import Settings, get_settings
 from core.database import AsyncSessionLocal
 from ingredients.infrastructure.sqlalchemy_ingredients import SqlAlchemyIngredientRepository
@@ -45,7 +46,10 @@ def create_app() -> FastAPI:
                 "Ingredient seed skipped (table not ready?): %s", exc
             )
 
-        orchestrator = BitenaryChatOrchestrator(settings)
+        orchestrator = BitenaryChatOrchestrator(
+            settings,
+            MCPTokenCodec(settings.mcp_token_pepper),
+        )
         _app.state.orchestrator = orchestrator
         await orchestrator.startup()
         async with mcp_server.session_manager.run():
