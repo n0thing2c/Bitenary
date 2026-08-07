@@ -49,6 +49,7 @@ def create_app() -> FastAPI:
         orchestrator = BitenaryChatOrchestrator(
             settings,
             MCPTokenCodec(settings.mcp_token_pepper),
+            AsyncSessionLocal,
         )
         _app.state.orchestrator = orchestrator
         await orchestrator.startup()

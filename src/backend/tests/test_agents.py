@@ -221,13 +221,22 @@ class TestCalculateAge:
 class TestOrchestratorNotStarted:
     def test_chat_raises_if_not_started(self):
         """chat() must raise RuntimeError before startup() is called."""
+        from unittest.mock import AsyncMock, MagicMock
         from core.config import get_settings
         from agents.orchestrator import BitenaryChatOrchestrator
         from bitenary_mcp.service.tokens import MCPTokenCodec
 
+        # Mock session_factory so no DB connection is needed in this test
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_factory = MagicMock(return_value=mock_session)
+
+        settings = get_settings()
         orchestrator = BitenaryChatOrchestrator(
-            get_settings(),
-            MCPTokenCodec(get_settings().mcp_token_pepper),
+            settings,
+            MCPTokenCodec(settings.mcp_token_pepper),
+            mock_session_factory,
         )
 
         import asyncio
@@ -255,7 +264,23 @@ class TestOrchestratorHappyPath:
         return redis
 
     @pytest.fixture()
-    def orchestrator(self, mock_redis):
+    def mock_session_factory(self):
+        """Provide a no-op async session factory so no DB is needed."""
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        # Make ChatHistoryService calls succeed silently
+        mock_session.get = AsyncMock(return_value=None)
+        mock_session.add = MagicMock()
+        mock_session.add_all = MagicMock()
+        mock_session.flush = AsyncMock()
+        mock_session.commit = AsyncMock()
+        mock_session.delete = AsyncMock()
+        mock_session.execute = AsyncMock()
+        return MagicMock(return_value=mock_session)
+
+    @pytest.fixture()
+    def orchestrator(self, mock_redis, mock_session_factory):
         from core.config import get_settings
         from agents.orchestrator import BitenaryChatOrchestrator
         from bitenary_mcp.service.tokens import MCPTokenCodec
@@ -264,6 +289,7 @@ class TestOrchestratorHappyPath:
         orch = BitenaryChatOrchestrator(
             settings,
             MCPTokenCodec(settings.mcp_token_pepper),
+            mock_session_factory,
         )
         orch._redis = mock_redis  # inject without real Redis connection
         return orch

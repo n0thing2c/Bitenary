@@ -29,9 +29,11 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
 from redis import asyncio as aioredis
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agents.prompts import build_system_prompt
 from bitenary_mcp.service.tokens import MCPTokenCodec
+from chat_history.service.history import ChatHistoryService
 from core.config import Settings
 
 if TYPE_CHECKING:
@@ -56,21 +58,28 @@ class BitenaryChatOrchestrator:
     """Stateless orchestrator that processes one chat turn per ``chat`` call.
 
     The orchestrator is intentionally stateless itself — all persistence
-    happens in Redis. This makes it safe to instantiate once per app
-    lifetime and call concurrently from multiple requests.
+    is split between two stores:
 
-    Usage::
+    - **Redis**: Hot cache for the active conversation window. Fast O(1) reads,
+      24-hour TTL. Used as the authoritative source when loading context into
+      the LLM (per the architecture requirement).
+    - **Postgres**: Durable write-through store. Every turn is synced here in
+      the background so users can access their full history beyond the Redis
+      TTL window (powers the Sidebar / History UI).
 
-        orchestrator = BitenaryChatOrchestrator(settings)
-        response = await orchestrator.chat(
-            session_id="user-uuid-or-session-token",
-            user_message="a bowl of pho bao nhiêu calo?",
-        )
+    This makes it safe to instantiate once per app lifetime and call
+    concurrently from multiple requests.
     """
 
-    def __init__(self, settings: Settings, token_codec: MCPTokenCodec) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        token_codec: MCPTokenCodec,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
         self._settings = settings
         self._token_codec = token_codec
+        self._chat_history = ChatHistoryService(session_factory)
         self._llm = ChatGoogleGenerativeAI(
             model=_GEMINI_MODEL,
             google_api_key=settings.google_api_key,
@@ -170,10 +179,11 @@ class BitenaryChatOrchestrator:
 
         return reply
 
-    async def clear_history(self, user_id: "UUID", session_id: str) -> None:
-        """Delete the entire conversation history for a session."""
+    async def clear_history(self, user_id: UUID, session_id: str) -> None:
+        """Delete the entire conversation history for a session (Redis + Postgres)."""
         if self._redis:
             await self._redis.delete(_make_redis_key(user_id, session_id))
+        await self._chat_history.clear_session(session_id)
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -224,15 +234,25 @@ class BitenaryChatOrchestrator:
 
     async def _save_turn(
         self,
-        user_id: "UUID",
+        user_id: UUID,
         session_id: str,
         user_message: str,
         ai_reply: str,
     ) -> None:
-        """Append this turn to the Redis list and set a 24-hour expiry."""
+        """Append this turn to Redis (hot cache) and sync to Postgres (durable)."""
         key = _make_redis_key(user_id, session_id)
         await self._redis.rpush(key, "human", user_message, "ai", ai_reply)  # type: ignore[union-attr]
         await self._redis.expire(key, 86400)  # 24 hours TTL
+
+        # Durable write-through: sync to Postgres in the background.
+        # Errors are swallowed inside ChatHistoryService so a DB hiccup never
+        # blocks the chat response from reaching the user.
+        await self._chat_history.sync_turn(
+            user_id=user_id,
+            session_id=session_id,
+            human_message=user_message,
+            ai_reply=ai_reply,
+        )
 
 
 def _make_redis_key(user_id: "UUID", session_id: str) -> str:
