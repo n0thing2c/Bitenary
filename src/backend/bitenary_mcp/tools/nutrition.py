@@ -72,13 +72,26 @@ def build_nutrition_tool(
         principal = current_principal()
 
         async def nutrition_operation() -> dict:
+            import logging as _log
+            _logger = _log.getLogger(__name__)
             try:
                 info = await spoonacular.get_nutrition_info(query, is_raw_ingredient)
             except SpoonacularError as exc:
+                _logger.error("[calculate_nutrition] SpoonacularError query=%r: %s", query, exc)
                 raise ExternalServiceError(
                     f"Nutrition lookup failed for {query!r}: {exc}"
                 ) from exc
+            except Exception as exc:
+                # Catch network errors (httpx.ConnectError, timeout, etc.)
+                _logger.error(
+                    "[calculate_nutrition] Unexpected error query=%r: %s: %s",
+                    query, type(exc).__name__, exc
+                )
+                raise ExternalServiceError(
+                    f"Nutrition lookup failed (network?) for {query!r}: {type(exc).__name__}: {exc}"
+                ) from exc
 
+            _logger.info("[calculate_nutrition] OK query=%r calories=%s", query, info.calories)
             return {
                 "query": query,
                 "nutrition": info.to_dict(),

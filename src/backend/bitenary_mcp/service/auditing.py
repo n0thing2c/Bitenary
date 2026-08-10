@@ -35,24 +35,38 @@ class MCPInvocationAuditor:
         invoked_at = datetime.now(UTC)
         started = perf_counter()
 
-        async with self._session_factory() as session:
-            repository = SqlAlchemyMCPAuditRepository(session)
-            await repository.start_invocation(
-                request_id=request_id,
-                client_id=principal.client_id,
-                tool_name=tool_name,
-                invoked_at=invoked_at,
+        try:
+            async with self._session_factory() as session:
+                repository = SqlAlchemyMCPAuditRepository(session)
+                await repository.start_invocation(
+                    request_id=request_id,
+                    client_id=principal.client_id,
+                    tool_name=tool_name,
+                    invoked_at=invoked_at,
+                )
+        except Exception:
+            # Internal agent tokens don't have an mcp_clients row — skip audit
+            # silently and execute the tool directly.
+            logger.debug(
+                "MCP audit start skipped for tool=%s (principal=%s)",
+                tool_name, principal.client_id,
             )
 
         try:
             result = await operation()
         except Exception:
-            await self._finish(
-                request_id=request_id,
-                outcome=MCPUsageOutcome.FAILED,
-                started=started,
-                error_code="TOOL_EXECUTION_FAILED",
-            )
+            # Best-effort: try to mark the audit as failed.
+            # If the audit itself is unavailable (e.g., internal agent has no
+            # mcp_clients row), silently skip — the tool error is what matters.
+            try:
+                await self._finish(
+                    request_id=request_id,
+                    outcome=MCPUsageOutcome.FAILED,
+                    started=started,
+                    error_code="TOOL_EXECUTION_FAILED",
+                )
+            except Exception:
+                pass
             raise
 
         await self._finish(
@@ -83,7 +97,8 @@ class MCPInvocationAuditor:
                     latency_ms=latency_ms,
                     error_code=error_code,
                 )
-        except Exception:
+        except Exception as exc:
             # The PENDING row created before execution remains as evidence that
             # final audit persistence failed. Never include request payloads.
-            logger.exception("Could not finalize MCP usage audit")
+            # Internal agent tokens don't have an mcp_clients row, so this fails.
+            logger.debug("Could not finalize MCP usage audit: %s", exc)
