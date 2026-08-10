@@ -61,21 +61,30 @@ class SpoonacularClient:
         self._client: httpx.AsyncClient | None = None
 
     # ------------------------------------------------------------------
-    # Context-manager support
+    # Context-manager support (kept for backward-compat / test teardown)
     # ------------------------------------------------------------------
 
     async def __aenter__(self) -> "SpoonacularClient":
-        self._client = httpx.AsyncClient(
-            base_url=_BASE_URL,
-            timeout=_TIMEOUT_SECONDS,
-            params={"apiKey": self._api_key},
-        )
+        self._get_client()  # ensure client is open
         return self
 
     async def __aexit__(self, *_: object) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
         if self._client is not None:
             await self._client.aclose()
             self._client = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        """Return the shared httpx client, creating it on first call (lazy init)."""
+        if self._client is None:
+            self._client = httpx.AsyncClient(
+                base_url=_BASE_URL,
+                timeout=_TIMEOUT_SECONDS,
+                params={"apiKey": self._api_key},
+            )
+        return self._client
 
     # ------------------------------------------------------------------
     # Public API methods
@@ -94,17 +103,14 @@ class SpoonacularClient:
                 which is optimized for raw ingredients with quantities.
                 If False, uses the guessNutrition endpoint for full dish names.
         """
-        if self._client is None:
-            raise RuntimeError(
-                "SpoonacularClient must be used as an async context manager."
-            )
+        client = self._get_client()
 
         if is_raw_ingredient:
             logger.debug("Spoonacular parseIngredients: %r", query)
             return await self._parse_ingredients(query)
 
         logger.debug("Spoonacular guessNutrition: %r", query)
-        response = await self._client.get(
+        response = await client.get(
             "/recipes/guessNutrition",
             params={"title": query},
         )
@@ -119,7 +125,8 @@ class SpoonacularClient:
         return _parse_guess_nutrition_response(data)
 
     async def _parse_ingredients(self, query: str) -> NutritionInformation:
-        response = await self._client.post(
+        client = self._get_client()
+        response = await client.post(
             "/recipes/parseIngredients",
             data={"ingredientList": query, "includeNutrition": "true"}
         )
@@ -178,11 +185,7 @@ class SpoonacularClient:
             A list of :class:`RecipeSummary` objects with title, image,
             prep time, and per-serving macro-nutrients.
         """
-        if self._client is None:
-            raise RuntimeError(
-                "SpoonacularClient must be used as an async context manager."
-            )
-
+        client = self._get_client()
         limit = min(limit, 5)  # Hard-cap to protect free-tier quota
         params: dict[str, str | int] = {
             "number": limit,
@@ -203,7 +206,7 @@ class SpoonacularClient:
             params["minProtein"] = min_protein
 
         logger.debug("Spoonacular complexSearch params: %s", params)
-        response = await self._client.get("/recipes/complexSearch", params=params)
+        response = await client.get("/recipes/complexSearch", params=params)
 
         if response.status_code != 200:
             raise SpoonacularError(
@@ -229,13 +232,9 @@ class SpoonacularClient:
             SpoonacularError: If the API returns a non-200 status or the
                 recipe ID is not found.
         """
-        if self._client is None:
-            raise RuntimeError(
-                "SpoonacularClient must be used as an async context manager."
-            )
-
+        client = self._get_client()
         logger.debug("Spoonacular recipe information: id=%s", recipe_id)
-        response = await self._client.get(
+        response = await client.get(
             f"/recipes/{recipe_id}/information",
             params={"includeNutrition": "false"},
         )
