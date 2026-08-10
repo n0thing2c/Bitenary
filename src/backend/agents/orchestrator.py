@@ -268,9 +268,27 @@ def _make_redis_key(user_id: "UUID", session_id: str) -> str:
 
 
 def _extract_reply(agent_result: dict[str, Any]) -> str:
-    """Pull the last AIMessage content from a LangGraph agent response."""
+    """Pull the last AIMessage content from a LangGraph agent response.
+
+    Gemini sometimes returns ``content`` as a list of content blocks
+    (e.g. ``[{"type": "text", "text": "..."}]``).  We normalise both
+    the plain-string and the list-of-blocks cases here.
+    """
     messages: list[BaseMessage] = agent_result.get("messages", [])
     for msg in reversed(messages):
         if isinstance(msg, AIMessage) and msg.content:
-            return str(msg.content)
+            content = msg.content
+            # Case 1: plain string
+            if isinstance(content, str):
+                return content
+            # Case 2: list of content blocks (Gemini multimodal format)
+            if isinstance(content, list):
+                text_parts = [
+                    block.get("text", "")
+                    for block in content
+                    if isinstance(block, dict) and block.get("type") == "text"
+                ]
+                joined = "\n".join(part for part in text_parts if part)
+                if joined:
+                    return joined
     return "Xin lỗi, tôi không thể tạo ra câu trả lời lúc này. Vui lòng thử lại."
