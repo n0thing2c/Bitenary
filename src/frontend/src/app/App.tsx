@@ -11,6 +11,7 @@ import type { CurrentUser } from "../features/auth/model/types";
 import { useHealthProfile } from "../features/health-profile/model/useHealthProfile";
 import type { UpsertHealthProfileRequest } from "../features/health-profile/model/types";
 import { AppShell } from "../features/health-profile/ui/AppShell";
+import { ChatPage } from "../features/chat/ui/ChatPage";
 import { AuthPage } from "../pages/auth/AuthPage";
 import { HealthProfileSetupPage } from "../pages/health-profile-setup/HealthProfileSetupPage";
 import { HealthProfilePage } from "../pages/health-profile/HealthProfilePage";
@@ -100,16 +101,32 @@ function ProfileRoutes({
   }
 
   const defaultPath =
-    data.onboarding_state === "NOT_STARTED" ? "/profile/setup" : "/profile";
+    data.onboarding_state === "NOT_STARTED" ? "/profile/setup" : "/";
+
+  const requireOnboarding = data.onboarding_state === "NOT_STARTED";
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate replace to={defaultPath} />} />
+      {/* Home → Chat (homepage) */}
+      <Route
+        path="/"
+        element={
+          requireOnboarding ? (
+            <Navigate replace to="/profile/setup" />
+          ) : (
+            <ChatPage
+              user={user}
+              isLoggingOut={isLoggingOut}
+              onLogout={onLogout}
+            />
+          )
+        }
+      />
       <Route
         path="/profile/setup"
         element={
           data.onboarding_state === "COMPLETED" ? (
-            <Navigate replace to="/profile" />
+            <Navigate replace to="/" />
           ) : (
             <HealthProfileSetupPage
               user={user}
@@ -118,7 +135,7 @@ function ProfileRoutes({
               canSkip={data.onboarding_state === "NOT_STARTED"}
               onSave={saveProfile}
               onSkip={skipProfile}
-              onBack={() => navigate("/profile")}
+              onBack={() => navigate("/")}
             />
           )
         }
@@ -126,7 +143,7 @@ function ProfileRoutes({
       <Route
         path="/profile"
         element={
-          data.onboarding_state === "NOT_STARTED" ? (
+          requireOnboarding ? (
             <Navigate replace to="/profile/setup" />
           ) : (
             <AppShell
@@ -148,7 +165,7 @@ function ProfileRoutes({
       <Route
         path="/fridge"
         element={
-          data.onboarding_state === "NOT_STARTED" ? (
+          requireOnboarding ? (
             <Navigate replace to="/profile/setup" />
           ) : (
             <AppShell
