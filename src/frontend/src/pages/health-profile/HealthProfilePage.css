@@ -1,5 +1,4 @@
 .health-profile-page {
-  min-height: 100vh;
   color: #1b3b42;
 }
 
@@ -11,7 +10,6 @@
   gap: 20px;
   padding: 22px 36px;
   border-bottom: 1px solid #dfe7e8;
-  background: rgba(251, 253, 252, 0.92);
 }
 
 .health-profile-page__header p,
