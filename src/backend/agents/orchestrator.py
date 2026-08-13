@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agents.prompts import build_system_prompt
 from bitenary_mcp.service.tokens import MCPTokenCodec
+from chat_history.domain.entities import ChatMessage, ChatSession
 from chat_history.service.history import ChatHistoryService
 from core.config import Settings
 
@@ -191,6 +192,16 @@ class BitenaryChatOrchestrator:
         if self._redis:
             await self._redis.delete(_make_redis_key(user_id, session_id))
         await self._chat_history.clear_session(session_id)
+
+    async def list_sessions(self, user_id: UUID, limit: int = 20) -> list[ChatSession]:
+        """List recent chat sessions from Postgres."""
+        return await self._chat_history.list_sessions(user_id, limit)
+
+    async def get_session_messages(
+        self, session_id: str, user_id: UUID
+    ) -> list[ChatMessage]:
+        """Get all messages for a session from Postgres."""
+        return await self._chat_history.get_session_messages(session_id, user_id)
 
     # ------------------------------------------------------------------
     # Private helpers

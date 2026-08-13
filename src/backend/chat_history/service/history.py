@@ -14,6 +14,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from chat_history.domain.entities import ChatMessage, ChatSession
 from chat_history.infrastructure.sqlalchemy_history import SqlAlchemyChatHistoryRepository
 
 logger = logging.getLogger(__name__)
@@ -93,6 +94,24 @@ class ChatHistoryService:
             logger.exception(
                 "ChatHistoryService.sync_turn failed for session %s", session_id
             )
+
+    async def list_sessions(self, user_id: UUID, limit: int = 20) -> list[ChatSession]:
+        """Return the N most recently active sessions for a user."""
+        async with self._session_factory() as db:
+            repo = SqlAlchemyChatHistoryRepository(db)
+            return await repo.list_sessions_for_user(user_id, limit=limit)
+
+    async def get_session_messages(
+        self, session_id: str, user_id: UUID
+    ) -> list[ChatMessage]:
+        """Return all messages for a session, ensuring the user owns it."""
+        async with self._session_factory() as db:
+            repo = SqlAlchemyChatHistoryRepository(db)
+            session = await repo.get_session(session_id)
+            if not session or session.user_id != user_id:
+                # If session doesn't exist or belongs to someone else, return empty list
+                return []
+            return await repo.get_messages_for_session(session_id)
 
     async def clear_session(self, session_id: str) -> None:
         """Delete the Postgres session and all its messages (CASCADE).

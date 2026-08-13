@@ -175,3 +175,13 @@ class SqlAlchemyChatHistoryRepository:
         )
         result = await self._session.execute(stmt)
         return [_session_to_domain(m) for m in result.scalars().all()]
+
+    async def get_messages_for_session(self, session_id: str) -> list[ChatMessage]:
+        """Return all messages for a session, ordered by creation time."""
+        stmt = (
+            select(ChatMessageModel)
+            .where(ChatMessageModel.session_id == session_id)
+            .order_by(ChatMessageModel.created_at.asc())
+        )
+        result = await self._session.execute(stmt)
+        return [_message_to_domain(m) for m in result.scalars().all()]

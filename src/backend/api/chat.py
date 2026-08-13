@@ -59,6 +59,18 @@ class ChatResponse(BaseModel):
     reply: str
 
 
+class ChatSessionResponse(BaseModel):
+    session_id: str
+    title: str
+    updated_at: str
+
+class ChatMessageResponse(BaseModel):
+    id: str
+    role: str
+    content: str
+    created_at: str
+
+
 class ClearHistoryRequest(BaseModel):
     """Payload for clearing conversation history."""
 
@@ -142,6 +154,55 @@ async def clear_history(
         user_id=current_user.user_id,
         session_id=body.session_id,
     )
+
+
+@router.get(
+    "/sessions",
+    response_model=list[ChatSessionResponse],
+    summary="Get recent chat sessions for the current user",
+)
+async def list_sessions(
+    request: Request,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[ChatSessionResponse]:
+    orchestrator = request.app.state.orchestrator
+    sessions = await orchestrator.list_sessions(current_user.user_id)
+    return [
+        ChatSessionResponse(
+            session_id=s.session_id,
+            title=s.title,
+            updated_at=s.updated_at.isoformat(),
+        )
+        for s in sessions
+    ]
+
+
+@router.get(
+    "/sessions/{session_id}/messages",
+    response_model=list[ChatMessageResponse],
+    summary="Get all messages for a specific chat session",
+)
+async def get_session_messages(
+    session_id: str,
+    request: Request,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[ChatMessageResponse]:
+    orchestrator = request.app.state.orchestrator
+    messages = await orchestrator.get_session_messages(session_id, current_user.user_id)
+    if not messages:
+        # If no messages or not authorized, return empty.
+        # Alternatively we could raise 404, but returning empty array is safe.
+        return []
+        
+    return [
+        ChatMessageResponse(
+            id=str(m.message_id),
+            role=str(m.role),
+            content=m.content,
+            created_at=m.created_at.isoformat(),
+        )
+        for m in messages
+    ]
 
 
 # ---------------------------------------------------------------------------
