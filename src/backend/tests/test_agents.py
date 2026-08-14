@@ -404,6 +404,8 @@ class TestOrchestratorHappyPath:
     @pytest.mark.asyncio
     async def test_clear_history_deletes_correct_key(self, orchestrator, mock_redis):
         """clear_history() must delete the scoped key chat:v1:{user_id}:{session_id}."""
+        orchestrator._chat_history.clear_session = AsyncMock()
+
         await orchestrator.clear_history(
             user_id=_FIXED_USER_ID,
             session_id=_FIXED_SESSION,
@@ -414,6 +416,10 @@ class TestOrchestratorHappyPath:
         assert str(_FIXED_USER_ID) in deleted_key
         assert _FIXED_SESSION in deleted_key
         assert deleted_key.startswith("chat:v1:")
+        orchestrator._chat_history.clear_session.assert_awaited_once_with(
+            user_id=_FIXED_USER_ID,
+            session_id=_FIXED_SESSION,
+        )
 
     @pytest.mark.asyncio
     async def test_fallback_reply_when_no_ai_message(self, orchestrator):

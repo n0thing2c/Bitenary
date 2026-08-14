@@ -14,7 +14,17 @@ import uuid
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, func, select, update
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    delete,
+    func,
+    select,
+    update,
+)
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
@@ -124,11 +134,14 @@ class SqlAlchemyChatHistoryRepository:
         await self._session.flush()
         return _session_to_domain(model)
 
-    async def touch_session(self, session_id: str) -> None:
+    async def touch_session(self, *, user_id: UUID, session_id: str) -> None:
         """Update updated_at so the session floats to the top of Sidebar lists."""
         await self._session.execute(
             update(ChatSessionModel)
-            .where(ChatSessionModel.session_id == session_id)
+            .where(
+                ChatSessionModel.user_id == user_id,
+                ChatSessionModel.session_id == session_id,
+            )
             .values(updated_at=func.now())
         )
 
@@ -156,12 +169,14 @@ class SqlAlchemyChatHistoryRepository:
         ])
         await self._session.flush()
 
-    async def delete_session(self, session_id: str) -> None:
+    async def delete_session(self, *, user_id: UUID, session_id: str) -> None:
         """Delete the session and all its messages (CASCADE)."""
-        row = await self._session.get(ChatSessionModel, session_id)
-        if row:
-            await self._session.delete(row)
-            await self._session.flush()
+        await self._session.execute(
+            delete(ChatSessionModel).where(
+                ChatSessionModel.user_id == user_id,
+                ChatSessionModel.session_id == session_id,
+            )
+        )
 
     async def list_sessions_for_user(
         self, user_id: UUID, *, limit: int = 20

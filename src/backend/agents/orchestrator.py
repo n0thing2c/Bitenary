@@ -191,7 +191,10 @@ class BitenaryChatOrchestrator:
         """Delete the entire conversation history for a session (Redis + Postgres)."""
         if self._redis:
             await self._redis.delete(_make_redis_key(user_id, session_id))
-        await self._chat_history.clear_session(session_id)
+        await self._chat_history.clear_session(
+            user_id=user_id,
+            session_id=session_id,
+        )
 
     async def list_sessions(self, user_id: UUID, limit: int = 20) -> list[ChatSession]:
         """List recent chat sessions from Postgres."""

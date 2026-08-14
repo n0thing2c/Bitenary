@@ -78,8 +78,20 @@ class ChatHistoryService:
                         title=title,
                     )
                 else:
+                    if existing.user_id != user_id:
+                        logger.warning(
+                            "Rejected chat history sync for session %s: "
+                            "session owner does not match user %s",
+                            session_id,
+                            user_id,
+                        )
+                        return
+
                     # Push the session to the top of Sidebar listing
-                    await repo.touch_session(session_id)
+                    await repo.touch_session(
+                        user_id=user_id,
+                        session_id=session_id,
+                    )
 
                 # 2. Append the message pair
                 await repo.append_messages(
@@ -113,7 +125,7 @@ class ChatHistoryService:
                 return []
             return await repo.get_messages_for_session(session_id)
 
-    async def clear_session(self, session_id: str) -> None:
+    async def clear_session(self, *, user_id: UUID, session_id: str) -> None:
         """Delete the Postgres session and all its messages (CASCADE).
 
         Errors are swallowed so that Redis-side deletion still succeeds even
@@ -122,7 +134,10 @@ class ChatHistoryService:
         try:
             async with self._session_factory() as db:
                 repo = SqlAlchemyChatHistoryRepository(db)
-                await repo.delete_session(session_id)
+                await repo.delete_session(
+                    user_id=user_id,
+                    session_id=session_id,
+                )
                 await db.commit()
         except Exception:
             logger.exception(
