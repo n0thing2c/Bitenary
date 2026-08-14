@@ -20,6 +20,10 @@ export function redirectToEndSession(): void {
   window.location.assign(`${env.backendUrl}/api/auth/end-session`);
 }
 
+export function redirectToAccountSettings(): void {
+  window.location.assign(`${env.backendUrl}/api/auth/account-settings`);
+}
+
 export async function getCurrentUser(): Promise<CurrentUser> {
   return apiGet<CurrentUser>("/api/auth/me");
 }

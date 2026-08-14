@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     authentik_revoke_url: str
     authentik_jwks_url: str
     authentik_end_session_url: str
+    authentik_user_settings_url: str
 
     oidc_redirect_uri: str
     oidc_scope: str

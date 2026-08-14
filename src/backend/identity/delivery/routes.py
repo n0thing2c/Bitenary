@@ -159,6 +159,16 @@ def end_session(settings: Settings = Depends(get_settings)) -> RedirectResponse:
     )
 
 
+@router.get("/account-settings")
+def account_settings(
+    settings: Settings = Depends(get_settings),
+) -> RedirectResponse:
+    return RedirectResponse(
+        settings.authentik_user_settings_url,
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
 @router.get("/csrf", response_model=CsrfResponse)
 def csrf(
     request: Request,

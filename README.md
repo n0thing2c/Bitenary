@@ -4,10 +4,6 @@ Bitenary is an authenticated nutrition and meal-planning platform with a React
 web application, a FastAPI backend, and a Streamable HTTP MCP server for Codex
 and Claude.
 
-> **Project status:** active MVP development. Web authentication and personal
-> MCP bearer-token authentication are implemented. The standalone MCP
-> connections panel is built but is not mounted in the main application yet.
-
 ## Features
 
 - Authentik OIDC login and signup using Authorization Code with PKCE.
@@ -16,7 +12,7 @@ and Claude.
 - One-time MCP token disclosure with HMAC-SHA-256 storage.
 - Streamable HTTP MCP transport at `/mcp`.
 - Read-only `get_server_status` MCP tool with usage auditing.
-- Independent React MCP connections panel ready for future navigation wiring.
+- React settings drawer and MCP connections management page.
 
 ## Architecture
 
@@ -147,6 +143,113 @@ Open `http://localhost:5173`.
 
 For an authenticated MCP smoke test, follow the
 [MCP authentication guide](readme/mcp-authentication.md).
+
+## Configure Bitenary MCP in Codex
+
+Codex connects to Bitenary through the Streamable HTTP endpoint and sends the
+personal token as a bearer token. Codex reads MCP servers from
+`~/.codex/config.toml`; the CLI, desktop app, and IDE extension on the same host
+share this configuration. See the
+[official OpenAI MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
+for the complete configuration reference.
+
+### 1. Create a personal MCP connection
+
+1. Sign in to Bitenary.
+2. Open **Settings** from the avatar menu.
+3. Select **MCP connections**, then create a Codex connection.
+4. Copy the plaintext token immediately. It is displayed only once.
+
+The examples below use the local server URL `http://localhost:8000/mcp`. Replace
+it with the public backend URL when Codex and Bitenary run on different hosts.
+The URL must be reachable from the machine running Codex.
+
+### 2. Set the token on Windows
+
+In PowerShell, replace `bty_mcp_xxx.your-secret` with the token copied from
+Bitenary. The following command stores it for the current Windows user:
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+  "BITENARY_MCP_TOKEN",
+  "bty_mcp_xxx.your-secret",
+  "User"
+)
+```
+
+Close and reopen Codex, VS Code, and terminal windows so they inherit the new
+environment variable. Confirm that the variable exists without printing the
+token:
+
+```powershell
+[bool][Environment]::GetEnvironmentVariable(
+  "BITENARY_MCP_TOKEN",
+  "User"
+)
+```
+
+The command should return `True`.
+
+### 3. Set the token on Linux
+
+For the current shell session:
+
+```bash
+export BITENARY_MCP_TOKEN='bty_mcp_xxx.your-secret'
+```
+
+To make it available after a reboot, add the same `export` line to the startup
+file for the shell that launches Codex, such as `~/.bashrc` or `~/.zshrc`, then
+reload it. For Bash:
+
+```bash
+source ~/.bashrc
+```
+
+Confirm that the variable exists without printing the token:
+
+```bash
+test -n "$BITENARY_MCP_TOKEN" && echo "BITENARY_MCP_TOKEN is set"
+```
+
+### 4. Add the MCP server to Codex
+
+Open the Codex configuration file:
+
+- Windows: `%USERPROFILE%\.codex\config.toml`
+- Linux: `~/.codex/config.toml`
+
+Create the file if it does not exist, then add:
+
+```toml
+[mcp_servers.bitenary-local]
+url = "http://localhost:8000/mcp"
+bearer_token_env_var = "BITENARY_MCP_TOKEN"
+```
+
+Keep the token out of `config.toml`: `bearer_token_env_var` contains only the
+environment-variable name. If Bitenary displayed a generated Codex snippet,
+you may paste that snippet instead because it already contains the correct MCP
+URL.
+
+Restart Codex after saving the configuration. Then verify the connection:
+
+```text
+/mcp
+```
+
+The result should list `bitenary-local`, show `Auth: Bearer token`, and display
+the available Bitenary tools. From the CLI, `codex mcp list` provides the same
+server-level check. For a read-only smoke test, ask Codex:
+
+```text
+Use the get_server_status tool from the bitenary-local MCP server and return
+the result unchanged.
+```
+
+The expected response includes `"status": "ok"` and
+`"service": "bitenary-mcp"`. Do not use `add_to_fridge` or `save_meal_plan` for
+a smoke test unless you intentionally want to modify application data.
 
 ## Development commands
 

@@ -16,6 +16,7 @@ import { AuthPage } from "../pages/auth/AuthPage";
 import { HealthProfileSetupPage } from "../pages/health-profile-setup/HealthProfileSetupPage";
 import { HealthProfilePage } from "../pages/health-profile/HealthProfilePage";
 import { VirtualFridgePage } from "../pages/virtual-fridge/VirtualFridgePage";
+import { McpConnectionsPage } from "../pages/settings/McpConnectionsPage";
 
 export function App() {
   const auth = useAuth();
@@ -174,6 +175,22 @@ function ProfileRoutes({
               onLogout={onLogout}
             >
               <VirtualFridgePage />
+            </AppShell>
+          )
+        }
+      />
+      <Route
+        path="/settings/mcp-connections"
+        element={
+          requireOnboarding ? (
+            <Navigate replace to="/profile/setup" />
+          ) : (
+            <AppShell
+              user={user}
+              isLoggingOut={isLoggingOut}
+              onLogout={onLogout}
+            >
+              <McpConnectionsPage />
             </AppShell>
           )
         }

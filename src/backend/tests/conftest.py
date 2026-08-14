@@ -39,6 +39,7 @@ TEST_ENV = {
     "AUTHENTIK_END_SESSION_URL": (
         "http://localhost:9000/application/o/bitenary/end-session/"
     ),
+    "AUTHENTIK_USER_SETTINGS_URL": "http://localhost:9000/if/user/#/settings",
     "OIDC_REDIRECT_URI": "http://localhost:8000/api/auth/callback",
     "OIDC_SCOPE": "openid profile email offline_access",
     "OIDC_STATE_SECRET": "test-oidc-state-secret",

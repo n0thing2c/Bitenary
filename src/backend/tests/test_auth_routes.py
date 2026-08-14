@@ -323,6 +323,20 @@ def test_end_session_redirects_to_authentik(client: TestClient) -> None:
     )
 
 
+def test_account_settings_redirects_to_configured_authentik_url(
+    client: TestClient,
+) -> None:
+    response = client.get(
+        "/api/auth/account-settings?next=https://malicious.example",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert response.headers["location"] == (
+        "http://localhost:9000/if/user/#/settings"
+    )
+
+
 def assert_cookies_cleared(response) -> None:
     set_cookie = response.headers.get_list("set-cookie")
     for cookie_name in (ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME, CSRF_COOKIE_NAME):

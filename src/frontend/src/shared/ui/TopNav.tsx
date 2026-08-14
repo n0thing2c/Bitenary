@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import type { CurrentUser } from "../../features/auth/model/types";
+import { redirectToAccountSettings } from "../../features/auth/api/authApi";
+import { SettingsPanel } from "../../features/settings/ui/SettingsPanel";
 import "../../features/chat/ui/tokens.css";
 import "./TopNav.css";
 
@@ -12,7 +14,10 @@ type Props = {
 
 export function TopNav({ user, isLoggingOut, onLogout }: Props) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const avatarButtonRef = useRef<HTMLButtonElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -23,6 +28,11 @@ export function TopNav({ user, isLoggingOut, onLogout }: Props) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  function closeSettings() {
+    setIsSettingsOpen(false);
+    window.requestAnimationFrame(() => avatarButtonRef.current?.focus());
+  }
 
   return (
     <div className="top-nav-wrapper">
@@ -73,7 +83,10 @@ export function TopNav({ user, isLoggingOut, onLogout }: Props) {
           </button>
           <div className="top-nav__user-menu" ref={menuRef}>
             <button 
+              ref={avatarButtonRef}
               className="top-nav__avatar" 
+              type="button"
+              aria-label={`User menu for ${user.username}`}
               aria-expanded={isMenuOpen}
               aria-haspopup="true"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -89,7 +102,14 @@ export function TopNav({ user, isLoggingOut, onLogout }: Props) {
                   {user.email && <span className="top-nav__dropdown-email">{user.email}</span>}
                 </div>
                 <div className="top-nav__dropdown-divider"></div>
-                <button className="top-nav__dropdown-item" onClick={() => setIsMenuOpen(false)}>
+                <button
+                  className="top-nav__dropdown-item"
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    setIsSettingsOpen(true);
+                  }}
+                >
                   Settings
                 </button>
                 <button 
@@ -107,6 +127,19 @@ export function TopNav({ user, isLoggingOut, onLogout }: Props) {
           </div>
         </div>
       </header>
+      {isSettingsOpen ? (
+        <SettingsPanel
+          onClose={closeSettings}
+          onOpenMcpConnections={() => {
+            setIsSettingsOpen(false);
+            navigate("/settings/mcp-connections");
+          }}
+          onChangePassword={() => {
+            setIsSettingsOpen(false);
+            redirectToAccountSettings();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
