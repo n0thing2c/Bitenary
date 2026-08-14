@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AUTH_EXPIRED_EVENT } from "./authEvents";
-import { apiGet } from "./httpClient";
+import { apiGet, apiPostJson } from "./httpClient";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -216,5 +216,34 @@ describe("HTTP authentication recovery", () => {
 
     expect(results.every((result) => result.status === "rejected")).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(paths.length);
+  });
+
+  it("sends JSON and CSRF headers for state-changing requests", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ client_id: "client" }, 201));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiPostJson<{ client_id: string }>(
+      "/api/mcp-connections",
+      { client_type: "CODEX", display_name: "My Codex" },
+      "csrf-token",
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8000/api/mcp-connections",
+      {
+        credentials: "include",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": "csrf-token",
+        },
+        body: JSON.stringify({
+          client_type: "CODEX",
+          display_name: "My Codex",
+        }),
+      },
+    );
   });
 });
