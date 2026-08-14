@@ -31,7 +31,7 @@ sequenceDiagram
     Authentik->>User: Authenticate
     Authentik->>Backend: Callback with code
     Backend->>Authentik: Exchange code for tokens
-    Backend->>Backend: Verify RS256 access JWT
+    Backend->>Backend: Verify ID Token, nonce, and RS256 access JWT
     Backend->>DB: Upsert user by OIDC subject
     Backend->>Browser: Set auth and CSRF cookies
     Browser->>Backend: GET /api/auth/me
@@ -207,8 +207,9 @@ http://localhost:8000/api/auth/login?return_to=/
 ## Security and current limits
 
 - Production requires HTTPS and `COOKIE_SECURE=true`.
-- OIDC access JWTs are accepted only after issuer, audience, signature, expiry,
-  and required claims are validated.
+- OIDC ID Tokens and access JWTs are accepted only after issuer, audience,
+  signature, expiry, nonce, and subject consistency are validated. UserInfo is
+  used only when its subject exactly matches the ID Token subject.
 - OIDC state is signed and bound to the PKCE verifier and nonce.
 - Every unsafe REST API method requires a valid signed CSRF token.
 - Signup depends on a correctly configured Authentik enrollment flow.

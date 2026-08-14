@@ -6,6 +6,7 @@ import jwt
 from jwt.algorithms import RSAAlgorithm
 
 from core.config import Settings
+from core.security import constant_time_equal
 from identity.domain.errors import AuthenticationError
 
 
@@ -20,10 +21,47 @@ class JwtVerifier:
         self._jwks: dict[str, Any] | None = None
 
     async def verify_access_token(self, token: str) -> dict[str, Any]:
+        return await self._verify_token(token, token_name="access token")
+
+    async def verify_id_token(
+        self,
+        token: str,
+        *,
+        expected_nonce: str,
+    ) -> dict[str, Any]:
+        claims = await self._verify_token(
+            token,
+            token_name="ID token",
+            required_claims=("iss", "sub", "aud", "exp", "iat", "nonce"),
+        )
+
+        subject = claims.get("sub")
+        nonce = claims.get("nonce")
+        if not isinstance(subject, str) or not subject:
+            raise AuthenticationError("ID token is missing subject")
+        if not isinstance(nonce, str) or not constant_time_equal(nonce, expected_nonce):
+            raise AuthenticationError("Invalid OIDC nonce")
+
+        audience = claims.get("aud")
+        authorized_party = claims.get("azp")
+        if isinstance(audience, list) and len(audience) > 1 and not authorized_party:
+            raise AuthenticationError("ID token is missing authorized party")
+        if authorized_party is not None and authorized_party != self._settings.authentik_client_id:
+            raise AuthenticationError("Invalid ID token authorized party")
+
+        return claims
+
+    async def _verify_token(
+        self,
+        token: str,
+        *,
+        token_name: str,
+        required_claims: tuple[str, ...] = (),
+    ) -> dict[str, Any]:
         try:
             header = jwt.get_unverified_header(token)
         except jwt.PyJWTError as exc:
-            raise AuthenticationError("Invalid access token") from exc
+            raise AuthenticationError(f"Invalid {token_name}") from exc
 
         if header.get("alg") != "RS256":
             raise AuthenticationError("Unsupported JWT algorithm")
@@ -36,9 +74,10 @@ class JwtVerifier:
                 algorithms=["RS256"],
                 audience=self._settings.authentik_client_id,
                 issuer=self._settings.authentik_issuer,
+                options={"require": list(required_claims)},
             )
         except jwt.PyJWTError as exc:
-            raise AuthenticationError("Invalid access token") from exc
+            raise AuthenticationError(f"Invalid {token_name}") from exc
 
         return claims
 
