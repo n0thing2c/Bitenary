@@ -115,6 +115,35 @@ def test_callback_sets_auth_and_csrf_cookies(client: TestClient) -> None:
     )
 
 
+def test_callback_without_refresh_token_clears_stale_refresh_cookie(
+    client: TestClient,
+) -> None:
+    transaction_service = OidcTransactionService("test-oidc-state-secret")
+    transaction = transaction_service.create("/")
+    fake_auth = FakeAuthService(
+        token_set=TokenSet(
+            access_token="new-access-token",
+            refresh_token=None,
+            id_token=None,
+            expires_in=900,
+        )
+    )
+    client.app.dependency_overrides[get_auth_service] = lambda: fake_auth
+    client.cookies.set(REFRESH_COOKIE_NAME, "stale-refresh-token")
+
+    response = client.get(
+        f"/api/auth/callback?code=auth-code&state={transaction.state}",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    set_cookie = response.headers.get_list("set-cookie")
+    assert any(
+        f"{REFRESH_COOKIE_NAME}=" in cookie and "Max-Age=0" in cookie
+        for cookie in set_cookie
+    )
+
+
 def test_callback_rejects_invalid_state(client: TestClient) -> None:
     response = client.get(
         "/api/auth/callback?code=auth-code&state=bad-state",
@@ -202,6 +231,33 @@ def test_refresh_rotates_access_cookie(client: TestClient) -> None:
     assert client.cookies.get(CSRF_COOKIE_NAME) == csrf_token
 
 
+def test_refresh_keeps_existing_refresh_token_when_response_omits_rotation(
+    client: TestClient,
+) -> None:
+    fake_auth = FakeAuthService(
+        token_set=TokenSet(
+            access_token="new-access-token",
+            refresh_token=None,
+            id_token=None,
+            expires_in=900,
+        )
+    )
+    client.app.dependency_overrides[get_auth_service] = lambda: fake_auth
+    client.cookies.set(REFRESH_COOKIE_NAME, "existing-refresh-token")
+
+    response = client.post(
+        "/api/auth/refresh",
+        headers=csrf_headers(client),
+    )
+
+    assert response.status_code == 204
+    set_cookie = response.headers.get_list("set-cookie")
+    assert any(
+        f"{REFRESH_COOKIE_NAME}=existing-refresh-token" in cookie
+        for cookie in set_cookie
+    )
+
+
 def test_refresh_rejects_missing_csrf(client: TestClient) -> None:
     client.cookies.set(REFRESH_COOKIE_NAME, "refresh-token")
 
@@ -256,6 +312,15 @@ def test_logout_revokes_refresh_and_clears_cookies(client: TestClient) -> None:
     set_cookie = response.headers.get_list("set-cookie")
     assert any(f"{ACCESS_COOKIE_NAME}=" in cookie and "Max-Age=0" in cookie for cookie in set_cookie)
     assert any(f"{REFRESH_COOKIE_NAME}=" in cookie and "Max-Age=0" in cookie for cookie in set_cookie)
+
+
+def test_end_session_redirects_to_authentik(client: TestClient) -> None:
+    response = client.get("/api/auth/end-session", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == (
+        "http://localhost:9000/application/o/bitenary/end-session/"
+    )
 
 
 def assert_cookies_cleared(response) -> None:

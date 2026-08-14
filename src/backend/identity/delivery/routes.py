@@ -151,6 +151,14 @@ async def logout(
     return response
 
 
+@router.get("/end-session")
+def end_session(settings: Settings = Depends(get_settings)) -> RedirectResponse:
+    return RedirectResponse(
+        settings.authentik_end_session_url,
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
 @router.get("/csrf", response_model=CsrfResponse)
 def csrf(
     request: Request,

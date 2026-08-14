@@ -38,6 +38,14 @@ def set_auth_cookies(
             secure=settings.cookie_secure,
             samesite=settings.cookie_samesite,
         )
+    else:
+        response.delete_cookie(
+            REFRESH_COOKIE_NAME,
+            path="/api/auth",
+            secure=settings.cookie_secure,
+            samesite=settings.cookie_samesite,
+            httponly=True,
+        )
 
 
 def set_csrf_cookie(response: Response, *, settings: Settings, token: str | None) -> str:
