@@ -5,8 +5,10 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 import pytest
 
+from conftest import csrf_headers
 from app.main import create_app
-from core.csrf import CSRF_COOKIE_NAME
+from core.csrf import CSRF_COOKIE_NAME, csrf_token_is_valid
+from core.config import get_settings
 from identity.delivery.cookies import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME
 from identity.domain.entities import CurrentUser, User, UserStatus
 from identity.domain.errors import AuthenticationError
@@ -107,6 +109,10 @@ def test_callback_sets_auth_and_csrf_cookies(client: TestClient) -> None:
     assert any(f"{ACCESS_COOKIE_NAME}=access-token" in cookie for cookie in set_cookie)
     assert any(f"{REFRESH_COOKIE_NAME}=refresh-token" in cookie for cookie in set_cookie)
     assert any("bitenary_csrf=" in cookie for cookie in set_cookie)
+    assert csrf_token_is_valid(
+        response.cookies.get(CSRF_COOKIE_NAME),
+        get_settings().csrf_secret,
+    )
 
 
 def test_callback_rejects_invalid_state(client: TestClient) -> None:
@@ -152,8 +158,22 @@ def test_csrf_issues_cookie_and_response_token(client: TestClient) -> None:
     response = client.get("/api/auth/csrf")
 
     assert response.status_code == 200
-    assert response.json()["csrf_token"]
+    assert csrf_token_is_valid(
+        response.json()["csrf_token"],
+        get_settings().csrf_secret,
+    )
     assert "bitenary_csrf=" in response.headers["set-cookie"]
+
+
+def test_csrf_replaces_legacy_unsigned_cookie(client: TestClient) -> None:
+    client.cookies.set(CSRF_COOKIE_NAME, "legacy-unsigned-token")
+
+    response = client.get("/api/auth/csrf")
+
+    token = response.json()["csrf_token"]
+    assert response.status_code == 200
+    assert token != "legacy-unsigned-token"
+    assert csrf_token_is_valid(token, get_settings().csrf_secret)
 
 
 def test_refresh_rotates_access_cookie(client: TestClient) -> None:
@@ -166,18 +186,20 @@ def test_refresh_rotates_access_cookie(client: TestClient) -> None:
         )
     )
     client.app.dependency_overrides[get_auth_service] = lambda: fake_auth
-    client.cookies.set("bitenary_csrf", "csrf-token")
     client.cookies.set(REFRESH_COOKIE_NAME, "old-refresh-token")
 
+    headers = csrf_headers(client)
+    csrf_token = headers["X-CSRF-Token"]
     response = client.post(
         "/api/auth/refresh",
-        headers={"X-CSRF-Token": "csrf-token"},
+        headers=headers,
     )
 
     assert response.status_code == 204
     set_cookie = response.headers.get_list("set-cookie")
     assert any(f"{ACCESS_COOKIE_NAME}=new-access-token" in cookie for cookie in set_cookie)
     assert any(f"{REFRESH_COOKIE_NAME}=new-refresh-token" in cookie for cookie in set_cookie)
+    assert client.cookies.get(CSRF_COOKIE_NAME) == csrf_token
 
 
 def test_refresh_rejects_missing_csrf(client: TestClient) -> None:
@@ -191,12 +213,11 @@ def test_refresh_rejects_missing_csrf(client: TestClient) -> None:
 def test_refresh_without_refresh_cookie_clears_auth_cookies(
     client: TestClient,
 ) -> None:
-    client.cookies.set(CSRF_COOKIE_NAME, "csrf-token")
     client.cookies.set(ACCESS_COOKIE_NAME, "stale-access-token")
 
     response = client.post(
         "/api/auth/refresh",
-        headers={"X-CSRF-Token": "csrf-token"},
+        headers=csrf_headers(client),
     )
 
     assert response.status_code == 401
@@ -207,13 +228,12 @@ def test_refresh_without_refresh_cookie_clears_auth_cookies(
 def test_refresh_failure_clears_auth_cookies(client: TestClient) -> None:
     fake_auth = FakeAuthService(token_set=None)
     client.app.dependency_overrides[get_auth_service] = lambda: fake_auth
-    client.cookies.set(CSRF_COOKIE_NAME, "csrf-token")
     client.cookies.set(ACCESS_COOKIE_NAME, "stale-access-token")
     client.cookies.set(REFRESH_COOKIE_NAME, "invalid-refresh-token")
 
     response = client.post(
         "/api/auth/refresh",
-        headers={"X-CSRF-Token": "csrf-token"},
+        headers=csrf_headers(client),
     )
 
     assert response.status_code == 401
@@ -224,12 +244,11 @@ def test_refresh_failure_clears_auth_cookies(client: TestClient) -> None:
 def test_logout_revokes_refresh_and_clears_cookies(client: TestClient) -> None:
     fake_auth = FakeAuthService(token_set=None)
     client.app.dependency_overrides[get_auth_service] = lambda: fake_auth
-    client.cookies.set("bitenary_csrf", "csrf-token")
     client.cookies.set(REFRESH_COOKIE_NAME, "refresh-token")
 
     response = client.post(
         "/api/auth/logout",
-        headers={"X-CSRF-Token": "csrf-token"},
+        headers=csrf_headers(client),
     )
 
     assert response.status_code == 204

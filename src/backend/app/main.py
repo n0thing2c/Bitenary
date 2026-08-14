@@ -11,6 +11,7 @@ from api.routers import router as api_router
 from bitenary_mcp.server import create_mcp_server
 from bitenary_mcp.service.tokens import MCPTokenCodec
 from core.config import Settings, get_settings
+from core.csrf import CSRFMiddleware
 from core.database import AsyncSessionLocal
 from ingredients.infrastructure.sqlalchemy_ingredients import SqlAlchemyIngredientRepository
 
@@ -63,6 +64,13 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Add CSRF first so CORS remains the outer middleware and decorates CSRF
+    # rejection responses for the configured browser origins.
+    app.add_middleware(
+        CSRFMiddleware,
+        secret=settings.csrf_secret,
+        protected_prefix="/api",
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.frontend_origin_list,

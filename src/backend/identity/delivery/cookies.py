@@ -1,8 +1,7 @@
 from fastapi import Response
 
 from core.config import Settings
-from core.csrf import CSRF_COOKIE_NAME
-from core.security import generate_urlsafe_token
+from core.csrf import CSRF_COOKIE_NAME, create_csrf_token, csrf_token_is_valid
 from identity.infrastructure.authentik_client import TokenSet
 
 
@@ -42,7 +41,11 @@ def set_auth_cookies(
 
 
 def set_csrf_cookie(response: Response, *, settings: Settings, token: str | None) -> str:
-    csrf_token = token or generate_urlsafe_token()
+    csrf_token = (
+        token
+        if csrf_token_is_valid(token, settings.csrf_secret)
+        else create_csrf_token(settings.csrf_secret)
+    )
     response.set_cookie(
         key=CSRF_COOKIE_NAME,
         value=csrf_token,

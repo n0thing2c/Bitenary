@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 from fastapi.testclient import TestClient
 import pytest
 
+from conftest import csrf_headers
 from app.main import create_app
 from health_profile.domain.entities import (
     HealthPreference,
@@ -145,11 +146,9 @@ def test_put_profile_creates_completed_profile(
     health_profile_client: tuple[TestClient, FakeHealthProfileService, CurrentUser],
 ) -> None:
     client, service, current_user = health_profile_client
-    client.cookies.set("bitenary_csrf", "csrf-token")
-
     response = client.put(
         "/api/health-profile",
-        headers={"X-CSRF-Token": "csrf-token"},
+        headers=csrf_headers(client),
         json=valid_profile_payload(),
     )
 
@@ -170,13 +169,12 @@ def test_put_profile_rejects_future_date(
     health_profile_client: tuple[TestClient, FakeHealthProfileService, CurrentUser],
 ) -> None:
     client, _service, _current_user = health_profile_client
-    client.cookies.set("bitenary_csrf", "csrf-token")
     payload = valid_profile_payload()
     payload["date_of_birth"] = date.today().isoformat()
 
     response = client.put(
         "/api/health-profile",
-        headers={"X-CSRF-Token": "csrf-token"},
+        headers=csrf_headers(client),
         json=payload,
     )
 
@@ -190,10 +188,9 @@ def test_skip_onboarding_requires_csrf_and_persists_state(
 
     assert client.post("/api/health-profile/onboarding/skip").status_code == 403
 
-    client.cookies.set("bitenary_csrf", "csrf-token")
     response = client.post(
         "/api/health-profile/onboarding/skip",
-        headers={"X-CSRF-Token": "csrf-token"},
+        headers=csrf_headers(client),
     )
 
     assert response.status_code == 204

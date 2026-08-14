@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from core.config import Settings, get_settings
-from core.csrf import CSRF_COOKIE_NAME, verify_csrf_token
+from core.csrf import CSRF_COOKIE_NAME
 from identity.delivery.cookies import (
     REFRESH_COOKIE_NAME,
     clear_auth_cookies,
@@ -100,7 +100,6 @@ async def refresh(
     auth_service: AuthService = Depends(get_auth_service),
 ) -> Response:
     response.status_code = status.HTTP_204_NO_CONTENT
-    verify_csrf_token(request)
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     if not refresh_token:
         logger.info("Session refresh rejected: refresh cookie missing")
@@ -143,7 +142,6 @@ async def logout(
     auth_service: AuthService = Depends(get_auth_service),
 ) -> Response:
     response.status_code = status.HTTP_204_NO_CONTENT
-    verify_csrf_token(request)
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     try:
         await auth_service.logout(refresh_token)

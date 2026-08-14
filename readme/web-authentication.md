@@ -154,13 +154,24 @@ COOKIE_SAMESITE=lax
 | --- | --- | --- | --- |
 | `bitenary_access` | Authentik access JWT | Yes | `/api` |
 | `bitenary_refresh` | Authentik refresh token | Yes | `/api/auth` |
-| `bitenary_csrf` | Double-submit CSRF token | No | `/` |
+| `bitenary_csrf` | Signed double-submit CSRF token | No | `/` |
 
 State-changing requests send the CSRF cookie value again in:
 
 ```http
 X-CSRF-Token: <bitenary_csrf value>
 ```
+
+The CSRF value is an opaque `v1.<nonce>.<signature>` token authenticated with
+HMAC-SHA256 and `CSRF_SECRET`. The backend accepts it only when the cookie and
+header match in constant time and the signature is valid. Legacy unsigned or
+tampered cookies are replaced the next time `GET /api/auth/csrf` is called.
+
+All unsafe methods under `/api` are protected centrally. `GET`, `HEAD`,
+`OPTIONS`, and `TRACE` are exempt; the bearer-authenticated `/mcp` endpoint is
+outside this middleware scope. This signed-nonce design prevents attackers from
+inventing an injectable CSRF value, but it is not bound to an individual access
+or refresh session.
 
 ## Manual verification
 
@@ -199,7 +210,7 @@ http://localhost:8000/api/auth/login?return_to=/
 - OIDC access JWTs are accepted only after issuer, audience, signature, expiry,
   and required claims are validated.
 - OIDC state is signed and bound to the PKCE verifier and nonce.
-- Refresh and logout require CSRF protection.
+- Every unsafe REST API method requires a valid signed CSRF token.
 - Signup depends on a correctly configured Authentik enrollment flow.
 - This guide covers web-user authentication. MCP clients use separate personal
   bearer tokens described in the [MCP authentication guide](mcp-authentication.md).

@@ -260,7 +260,8 @@ gốc `/api`, feature cung cấp ba endpoint:
 | `POST` | `/api/health-profile/onboarding/skip` | Bỏ qua onboarding nếu chưa có hồ sơ |
 
 Cả ba endpoint yêu cầu `CurrentUser`, tức người gọi phải đăng nhập. Hai endpoint
-thay đổi dữ liệu (`PUT`, `POST`) còn gọi `verify_csrf_token()` để chống CSRF.
+thay đổi dữ liệu (`PUT`, `POST`) được middleware chung xác minh CSRF trước khi
+route được gọi.
 Route chuyển lỗi nghiệp vụ sang HTTP status phù hợp:
 
 - `InvalidHealthProfileError` thành `422`.
@@ -306,7 +307,7 @@ ghi, tạo profile thành công, validation ngày sinh và endpoint skip onboard
 
 - `core/database.py`: cung cấp `Base`, `AsyncSession` và dependency session cho
   ORM/repository.
-- `core/csrf.py`: xác minh CSRF token cho các request thay đổi dữ liệu.
+- `core/csrf.py`: ký token và bảo vệ tập trung các request thay đổi dữ liệu.
 - `identity/wiring.py`: cung cấp `CurrentUser` đã xác thực cho route.
 - `identity/infrastructure/sqlalchemy_users.py`: chứa `UserModel`, bao gồm cột
   lưu thời điểm bỏ qua profile onboarding.

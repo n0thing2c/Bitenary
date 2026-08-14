@@ -80,13 +80,18 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
-        if self.environment.lower() == "production" and (
-            self.mcp_token_pepper == "replace-me"
-            or len(self.mcp_token_pepper) < 32
-        ):
-            raise ValueError(
-                "MCP_TOKEN_PEPPER must contain at least 32 characters in production"
-            )
+        if self.environment.lower() == "production":
+            if self.csrf_secret == "replace-me" or len(self.csrf_secret) < 32:
+                raise ValueError(
+                    "CSRF_SECRET must contain at least 32 characters in production"
+                )
+            if (
+                self.mcp_token_pepper == "replace-me"
+                or len(self.mcp_token_pepper) < 32
+            ):
+                raise ValueError(
+                    "MCP_TOKEN_PEPPER must contain at least 32 characters in production"
+                )
         return self
 
 
