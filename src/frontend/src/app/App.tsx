@@ -1,18 +1,20 @@
+import { useEffect } from "react";
 import {
   BrowserRouter,
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate,
 } from "react-router-dom";
 
 import { useAuth } from "../features/auth/model/useAuth";
+import { redirectToLogin } from "../features/auth/api/authApi";
 import type { CurrentUser } from "../features/auth/model/types";
 import { useHealthProfile } from "../features/health-profile/model/useHealthProfile";
 import type { UpsertHealthProfileRequest } from "../features/health-profile/model/types";
 import { AppShell } from "../features/health-profile/ui/AppShell";
 import { ChatPage } from "../features/chat/ui/ChatPage";
-import { AuthPage } from "../pages/auth/AuthPage";
 import { HealthProfileSetupPage } from "../pages/health-profile-setup/HealthProfileSetupPage";
 import { HealthProfilePage } from "../pages/health-profile/HealthProfilePage";
 import { VirtualFridgePage } from "../pages/virtual-fridge/VirtualFridgePage";
@@ -21,18 +23,68 @@ import { McpConnectionsPage } from "../pages/settings/McpConnectionsPage";
 export function App() {
   const auth = useAuth();
 
-  if (!auth.user) {
-    return <AuthPage isLoading={auth.isLoading} error={auth.error} />;
-  }
-
   return (
     <BrowserRouter>
-      <AuthenticatedProfileApp
-        user={auth.user}
-        isLoggingOut={auth.isLoading}
-        onLogout={auth.logoutUser}
-      />
+      {auth.user ? (
+        <AuthenticatedProfileApp
+          user={auth.user}
+          isLoggingOut={auth.isLoading}
+          onLogout={auth.logoutUser}
+        />
+      ) : (
+        <GuestRoutes isResolvingAuth={auth.isLoading} />
+      )}
     </BrowserRouter>
+  );
+}
+
+function GuestRoutes({ isResolvingAuth }: { isResolvingAuth: boolean }) {
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <ChatPage
+            key="guest"
+            user={null}
+            isLoggingOut={false}
+            onLogout={() => undefined}
+          />
+        }
+      />
+      <Route
+        path="*"
+        element={<PrivateRouteLoginRedirect isResolvingAuth={isResolvingAuth} />}
+      />
+    </Routes>
+  );
+}
+
+function PrivateRouteLoginRedirect({
+  isResolvingAuth,
+}: {
+  isResolvingAuth: boolean;
+}) {
+  const location = useLocation();
+  const returnTo = `${location.pathname}${location.search}${location.hash}`;
+
+  useEffect(() => {
+    if (!isResolvingAuth) {
+      redirectToLogin(returnTo);
+    }
+  }, [isResolvingAuth, returnTo]);
+
+  return (
+    <main className="app-state" aria-live="polite">
+      <div>
+        <span className="app-state__spinner" aria-hidden="true" />
+        <p>
+          {isResolvingAuth
+            ? "Checking your session..."
+            : "Redirecting to sign in..."}
+        </p>
+      </div>
+    </main>
   );
 }
 
@@ -116,6 +168,7 @@ function ProfileRoutes({
             <Navigate replace to="/profile/setup" />
           ) : (
             <ChatPage
+              key="authenticated"
               user={user}
               isLoggingOut={isLoggingOut}
               onLogout={onLogout}

@@ -13,6 +13,7 @@ from bitenary_mcp.service.tokens import MCPTokenCodec
 from core.config import Settings, get_settings
 from core.csrf import CSRFMiddleware
 from core.database import AsyncSessionLocal
+from guest_chat.service import GuestChatRateLimiter
 from ingredients.infrastructure.sqlalchemy_ingredients import SqlAlchemyIngredientRepository
 
 
@@ -53,9 +54,17 @@ def create_app() -> FastAPI:
             AsyncSessionLocal,
         )
         _app.state.orchestrator = orchestrator
+        guest_chat_rate_limiter = GuestChatRateLimiter(
+            settings.redis_url,
+            per_minute=settings.guest_chat_rate_limit_per_minute,
+            per_day=settings.guest_chat_rate_limit_per_day,
+        )
+        _app.state.guest_chat_rate_limiter = guest_chat_rate_limiter
         await orchestrator.startup()
+        await guest_chat_rate_limiter.startup()
         async with mcp_server.session_manager.run():
             yield
+        await guest_chat_rate_limiter.shutdown()
         await orchestrator.shutdown()
 
     app = FastAPI(

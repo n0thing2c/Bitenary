@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
 import type { CurrentUser } from "../../auth/model/types";
+import { redirectToLogin } from "../../auth/api/authApi";
 import { useChat } from "../model/useChat";
 import { ChatLog } from "./ChatLog";
 import { ChatInput } from "./ChatInput";
@@ -8,7 +8,7 @@ import { TopNav } from "../../../shared/ui/TopNav";
 import "./Chat.css";
 
 type Props = {
-  user: CurrentUser;
+  user: CurrentUser | null;
   isLoggingOut: boolean;
   onLogout: () => void;
 };
@@ -95,6 +95,7 @@ function BrandMark() {
 
 export function ChatPage({ user, isLoggingOut, onLogout }: Props) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const isAuthenticated = user !== null;
   
   const {
     messages,
@@ -104,10 +105,11 @@ export function ChatPage({ user, isLoggingOut, onLogout }: Props) {
     newSession,
     isLoading,
     error,
+    errorStatus,
     sendMessage,
     dismissError,
     scrollAnchorRef,
-  } = useChat();
+  } = useChat({ isAuthenticated });
 
   return (
     <div className="chat-workbench">
@@ -198,14 +200,24 @@ export function ChatPage({ user, isLoggingOut, onLogout }: Props) {
             Bitenary
           </div>
           <div className="chat-mobile-header__actions">
-            <button
-              className="chat-mobile-header__btn"
-              type="button"
-              disabled={isLoggingOut}
-              onClick={onLogout}
-            >
-              Log out
-            </button>
+            {isAuthenticated ? (
+              <button
+                className="chat-mobile-header__btn"
+                type="button"
+                disabled={isLoggingOut}
+                onClick={onLogout}
+              >
+                Log out
+              </button>
+            ) : (
+              <button
+                className="chat-mobile-header__btn"
+                type="button"
+                onClick={() => redirectToLogin("/")}
+              >
+                Login
+              </button>
+            )}
           </div>
         </header>
 
@@ -215,7 +227,7 @@ export function ChatPage({ user, isLoggingOut, onLogout }: Props) {
         <ChatLog
           messages={messages}
           isLoading={isLoading}
-          username={user.username}
+          username={user?.username ?? "Guest"}
           scrollAnchorRef={scrollAnchorRef}
           onSuggestion={sendMessage}
         />
@@ -229,6 +241,15 @@ export function ChatPage({ user, isLoggingOut, onLogout }: Props) {
             style={{ margin: "0 var(--space-6) var(--space-2)", maxWidth: 720 }}
           >
             <span>{error}</span>
+            {!isAuthenticated && errorStatus === 429 ? (
+              <button
+                className="chat-error__login"
+                type="button"
+                onClick={() => redirectToLogin("/")}
+              >
+                Login to continue
+              </button>
+            ) : null}
             <button
               className="chat-error__dismiss"
               type="button"

@@ -13,6 +13,13 @@ from health_profile.domain.entities import (
 from health_profile.wiring import get_health_profile_service
 from identity.domain.entities import CurrentUser, UserStatus
 from identity.wiring import get_current_user
+from core.config import get_settings
+from guest_chat.service import (
+    GUEST_COOKIE_NAME,
+    GUEST_COOKIE_PATH,
+    GuestChatRateLimitExceeded,
+    GuestIdentityCodec,
+)
 from meal_plan.delivery.routes import router as meal_plan_router
 from meal_plan.wiring import get_meal_plan_service
 from virtual_fridge.wiring import get_virtual_fridge_service
@@ -25,9 +32,13 @@ class FakeOrchestrator:
     def __init__(self) -> None:
         self.chat_calls = 0
         self.clear_history_calls = 0
+        self.last_chat_values: dict[str, object] | None = None
+        self.chat_values: list[dict[str, object]] = []
 
-    async def chat(self, **_values: object) -> str:
+    async def chat(self, **values: object) -> str:
         self.chat_calls += 1
+        self.last_chat_values = values
+        self.chat_values.append(values)
         return "AI reply"
 
     async def clear_history(self, **_values: object) -> None:
@@ -55,6 +66,17 @@ class FakeMealPlanService:
         self.delete_calls += 1
 
 
+class FakeGuestChatRateLimiter:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+        self.error: Exception | None = None
+
+    async def check(self, **values: object) -> None:
+        self.calls.append(values)
+        if self.error is not None:
+            raise self.error
+
+
 @pytest.fixture()
 def mutation_client() -> tuple[TestClient, FakeOrchestrator, FakeMealPlanService]:
     current_user = CurrentUser(
@@ -73,6 +95,7 @@ def mutation_client() -> tuple[TestClient, FakeOrchestrator, FakeMealPlanService
     api_router.include_router(meal_plan_router)
     app.include_router(api_router)
     app.state.orchestrator = orchestrator
+    app.state.guest_chat_rate_limiter = FakeGuestChatRateLimiter()
     app.dependency_overrides[get_current_user] = lambda: current_user
     app.dependency_overrides[get_health_profile_service] = FakeProfileService
     app.dependency_overrides[get_virtual_fridge_service] = FakeFridgeService
@@ -123,6 +146,129 @@ def test_chat_post_accepts_signed_csrf(
     assert response.status_code == 200
     assert response.json() == {"session_id": "session-1", "reply": "AI reply"}
     assert orchestrator.chat_calls == 1
+
+
+@pytest.mark.parametrize("forged", [False, True])
+def test_guest_chat_rejects_missing_or_forged_csrf(
+    mutation_client: tuple[TestClient, FakeOrchestrator, FakeMealPlanService],
+    forged: bool,
+) -> None:
+    client, orchestrator, _meal_plan_service = mutation_client
+    headers = {}
+    if forged:
+        client.cookies.set("bitenary_csrf", "forged-token")
+        headers = {"X-CSRF-Token": "forged-token"}
+
+    response = client.post(
+        "/api/chat/guest",
+        headers=headers,
+        json={"session_id": "guest-session", "message": "Hello"},
+    )
+
+    assert response.status_code == 403
+    assert orchestrator.chat_calls == 0
+
+
+def test_guest_chat_works_without_authenticated_user_and_sets_cookie(
+    mutation_client: tuple[TestClient, FakeOrchestrator, FakeMealPlanService],
+) -> None:
+    client, orchestrator, _meal_plan_service = mutation_client
+    original_override = client.app.dependency_overrides[get_current_user]
+
+    def reject_auth_dependency() -> None:
+        raise AssertionError("Guest chat must not resolve an authenticated user")
+
+    client.app.dependency_overrides[get_current_user] = reject_auth_dependency
+    try:
+        response = client.post(
+            "/api/chat/guest",
+            headers=csrf_headers(client),
+            json={"session_id": "guest-session", "message": "Plan dinner"},
+        )
+    finally:
+        client.app.dependency_overrides[get_current_user] = original_override
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "session_id": "guest-session",
+        "reply": "AI reply",
+    }
+    assert response.cookies.get(GUEST_COOKIE_NAME)
+    assert orchestrator.last_chat_values is not None
+    assert str(orchestrator.last_chat_values["mode"]) == "guest"
+    assert orchestrator.last_chat_values["health_profile"] is None
+    assert orchestrator.last_chat_values["expiring_items"] is None
+
+
+def test_guest_chat_reuses_valid_cookie_identity(
+    mutation_client: tuple[TestClient, FakeOrchestrator, FakeMealPlanService],
+) -> None:
+    client, orchestrator, _meal_plan_service = mutation_client
+    headers = csrf_headers(client)
+
+    for message in ("First", "Second"):
+        response = client.post(
+            "/api/chat/guest",
+            headers=headers,
+            json={"session_id": "guest-session", "message": message},
+        )
+        assert response.status_code == 200
+
+    assert len(orchestrator.chat_values) == 2
+    assert orchestrator.chat_values[0]["user_id"] == orchestrator.chat_values[1]["user_id"]
+
+
+def test_guest_chat_replaces_tampered_identity_cookie(
+    mutation_client: tuple[TestClient, FakeOrchestrator, FakeMealPlanService],
+) -> None:
+    client, _orchestrator, _meal_plan_service = mutation_client
+    client.cookies.set(GUEST_COOKIE_NAME, "tampered", path=GUEST_COOKIE_PATH)
+
+    response = client.post(
+        "/api/chat/guest",
+        headers=csrf_headers(client),
+        json={"session_id": "guest-session", "message": "Hello"},
+    )
+
+    assert response.status_code == 200
+    replacement = response.cookies.get(GUEST_COOKIE_NAME)
+    assert replacement is not None
+    assert GuestIdentityCodec(get_settings().csrf_secret).decode(replacement) is not None
+
+
+def test_guest_chat_returns_rate_limit_with_retry_after(
+    mutation_client: tuple[TestClient, FakeOrchestrator, FakeMealPlanService],
+) -> None:
+    client, orchestrator, _meal_plan_service = mutation_client
+    limiter = client.app.state.guest_chat_rate_limiter
+    limiter.error = GuestChatRateLimitExceeded(retry_after=37)
+
+    response = client.post(
+        "/api/chat/guest",
+        headers=csrf_headers(client),
+        json={"session_id": "guest-session", "message": "Hello"},
+    )
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "37"
+    assert orchestrator.chat_calls == 0
+
+
+def test_guest_chat_fails_closed_when_rate_limiter_is_unavailable(
+    mutation_client: tuple[TestClient, FakeOrchestrator, FakeMealPlanService],
+) -> None:
+    client, orchestrator, _meal_plan_service = mutation_client
+    limiter = client.app.state.guest_chat_rate_limiter
+    limiter.error = RuntimeError("redis unavailable")
+
+    response = client.post(
+        "/api/chat/guest",
+        headers=csrf_headers(client),
+        json={"session_id": "guest-session", "message": "Hello"},
+    )
+
+    assert response.status_code == 503
+    assert orchestrator.chat_calls == 0
 
 
 @pytest.mark.parametrize("forged", [False, True])

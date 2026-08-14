@@ -46,3 +46,15 @@ export async function sendMessage(
     csrfToken,
   );
 }
+
+export async function sendGuestMessage(
+  message: string,
+  sessionId: string,
+  csrfToken: string,
+): Promise<SendMessageResponse> {
+  return apiPostJson<SendMessageResponse>(
+    "/api/chat/guest",
+    { session_id: sessionId, message } satisfies SendMessageRequest,
+    csrfToken,
+  );
+}

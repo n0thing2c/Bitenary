@@ -18,6 +18,7 @@ import sys
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -111,6 +112,16 @@ class TestBuildSystemPromptAnonymous:
     def test_no_allergy_warning_without_profile(self):
         prompt = build_system_prompt(None)
         assert "CRITICAL SAFETY RULE" not in prompt
+
+    def test_guest_prompt_allows_recommendations_but_not_account_writes(self):
+        prompt = build_system_prompt(None, is_guest=True)
+        normalized = prompt.lower()
+
+        assert "calculate_nutrition" in prompt
+        assert "search_recipes" in prompt
+        assert "recommend a complete meal plan" in normalized
+        assert "never claim to save a meal plan" in normalized
+        assert "need to sign in" in normalized
 
 
 class TestBuildSystemPromptPersonalised:
@@ -219,7 +230,8 @@ class TestCalculateAge:
 
 
 class TestOrchestratorNotStarted:
-    def test_chat_raises_if_not_started(self):
+    @pytest.mark.asyncio
+    async def test_chat_raises_if_not_started(self):
         """chat() must raise RuntimeError before startup() is called."""
         from unittest.mock import AsyncMock, MagicMock
         from core.config import get_settings
@@ -239,15 +251,11 @@ class TestOrchestratorNotStarted:
             mock_session_factory,
         )
 
-        import asyncio
-
         with pytest.raises(RuntimeError, match="not started"):
-            asyncio.get_event_loop().run_until_complete(
-                orchestrator.chat(
-                    user_id=_FIXED_USER_ID,
-                    session_id=_FIXED_SESSION,
-                    user_message="hello",
-                )
+            await orchestrator.chat(
+                user_id=_FIXED_USER_ID,
+                session_id=_FIXED_SESSION,
+                user_message="hello",
             )
 
 
@@ -303,15 +311,13 @@ class TestOrchestratorHappyPath:
         fake_agent_result = {"messages": [fake_ai_msg]}
 
         mock_mcp_client = MagicMock()
-        mock_mcp_client.get_tools = MagicMock(return_value=[])
-        mock_mcp_ctx = MagicMock()
-        mock_mcp_ctx.__aenter__ = AsyncMock(return_value=mock_mcp_client)
-        mock_mcp_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_mcp_client.get_tools = AsyncMock(return_value=[])
+        mock_mcp_client.close = AsyncMock()
 
         with (
             patch(
                 "agents.orchestrator.MultiServerMCPClient",
-                return_value=mock_mcp_ctx,
+                return_value=mock_mcp_client,
             ),
             patch(
                 "agents.orchestrator.create_react_agent",
@@ -336,13 +342,14 @@ class TestOrchestratorHappyPath:
         fake_agent_result = {"messages": [AIMessage(content="test reply")]}
 
         mock_mcp_client = MagicMock()
-        mock_mcp_client.get_tools = MagicMock(return_value=[])
-        mock_mcp_ctx = MagicMock()
-        mock_mcp_ctx.__aenter__ = AsyncMock(return_value=mock_mcp_client)
-        mock_mcp_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_mcp_client.get_tools = AsyncMock(return_value=[])
+        mock_mcp_client.close = AsyncMock()
 
         with (
-            patch("agents.orchestrator.MultiServerMCPClient", return_value=mock_mcp_ctx),
+            patch(
+                "agents.orchestrator.MultiServerMCPClient",
+                return_value=mock_mcp_client,
+            ),
             patch(
                 "agents.orchestrator.create_react_agent",
                 return_value=MagicMock(
@@ -376,13 +383,14 @@ class TestOrchestratorHappyPath:
             return {"messages": [AIMessage(content="Day la cau tra loi.")]}
 
         mock_mcp_client = MagicMock()
-        mock_mcp_client.get_tools = MagicMock(return_value=[])
-        mock_mcp_ctx = MagicMock()
-        mock_mcp_ctx.__aenter__ = AsyncMock(return_value=mock_mcp_client)
-        mock_mcp_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_mcp_client.get_tools = AsyncMock(return_value=[])
+        mock_mcp_client.close = AsyncMock()
 
         with (
-            patch("agents.orchestrator.MultiServerMCPClient", return_value=mock_mcp_ctx),
+            patch(
+                "agents.orchestrator.MultiServerMCPClient",
+                return_value=mock_mcp_client,
+            ),
             patch(
                 "agents.orchestrator.create_react_agent",
                 return_value=MagicMock(ainvoke=capture_ainvoke),
@@ -425,13 +433,14 @@ class TestOrchestratorHappyPath:
     async def test_fallback_reply_when_no_ai_message(self, orchestrator):
         """If Gemini returns no AIMessage, a safe fallback string is returned."""
         mock_mcp_client = MagicMock()
-        mock_mcp_client.get_tools = MagicMock(return_value=[])
-        mock_mcp_ctx = MagicMock()
-        mock_mcp_ctx.__aenter__ = AsyncMock(return_value=mock_mcp_client)
-        mock_mcp_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_mcp_client.get_tools = AsyncMock(return_value=[])
+        mock_mcp_client.close = AsyncMock()
 
         with (
-            patch("agents.orchestrator.MultiServerMCPClient", return_value=mock_mcp_ctx),
+            patch(
+                "agents.orchestrator.MultiServerMCPClient",
+                return_value=mock_mcp_client,
+            ),
             patch(
                 "agents.orchestrator.create_react_agent",
                 return_value=MagicMock(
@@ -446,3 +455,53 @@ class TestOrchestratorHappyPath:
             )
 
         assert "Xin loi" in reply or "Xin l\u1ed7i" in reply
+
+    @pytest.mark.asyncio
+    async def test_guest_chat_filters_tools_and_skips_durable_history(
+        self, orchestrator
+    ):
+        from agents.orchestrator import ChatMode
+        from langchain_core.messages import AIMessage
+
+        tools = [
+            SimpleNamespace(name="calculate_nutrition"),
+            SimpleNamespace(name="search_recipes"),
+            SimpleNamespace(name="get_recipe_details"),
+            SimpleNamespace(name="get_fridge_inventory"),
+            SimpleNamespace(name="save_meal_plan"),
+            SimpleNamespace(name="add_to_fridge"),
+        ]
+        mcp_client = MagicMock()
+        mcp_client.get_tools = AsyncMock(return_value=tools)
+        mcp_client.close = AsyncMock()
+        captured_tools: list[object] = []
+
+        def create_agent(_llm, selected_tools):
+            captured_tools.extend(selected_tools)
+            return MagicMock(
+                ainvoke=AsyncMock(
+                    return_value={"messages": [AIMessage(content="Guest reply")]}
+                )
+            )
+
+        orchestrator._chat_history.sync_turn = AsyncMock()
+        with (
+            patch(
+                "agents.orchestrator.MultiServerMCPClient",
+                return_value=mcp_client,
+            ),
+            patch("agents.orchestrator.create_react_agent", side_effect=create_agent),
+        ):
+            await orchestrator.chat(
+                user_id=_FIXED_USER_ID,
+                session_id=_FIXED_SESSION,
+                user_message="Plan dinner",
+                mode=ChatMode.GUEST,
+            )
+
+        assert {tool.name for tool in captured_tools} == {
+            "calculate_nutrition",
+            "search_recipes",
+            "get_recipe_details",
+        }
+        orchestrator._chat_history.sync_turn.assert_not_awaited()

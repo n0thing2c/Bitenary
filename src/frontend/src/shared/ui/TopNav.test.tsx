@@ -4,11 +4,13 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { redirectToAccountSettings } from "../../features/auth/api/authApi";
+import { redirectToLogin } from "../../features/auth/api/authApi";
 import type { CurrentUser } from "../../features/auth/model/types";
 import { TopNav } from "./TopNav";
 
 vi.mock("../../features/auth/api/authApi", () => ({
   redirectToAccountSettings: vi.fn(),
+  redirectToLogin: vi.fn(),
 }));
 
 const user: CurrentUser = {
@@ -83,5 +85,37 @@ describe("TopNav settings", () => {
         screen.getByRole("button", { name: "User menu for Ada" }),
       ).toHaveFocus(),
     );
+  });
+});
+
+describe("TopNav guest navigation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function renderGuestTopNav() {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <TopNav user={null} isLoggingOut={false} onLogout={vi.fn()} />
+      </MemoryRouter>,
+    );
+  }
+
+  it("shows Login without authenticated account actions", async () => {
+    renderGuestTopNav();
+
+    expect(screen.getByRole("button", { name: "Login" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /User menu/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Notifications" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Login" }));
+    expect(redirectToLogin).toHaveBeenCalledWith("/");
+  });
+
+  it("requires login and preserves the private destination", async () => {
+    renderGuestTopNav();
+
+    await userEvent.click(screen.getByRole("link", { name: "Virtual Fridge" }));
+    expect(redirectToLogin).toHaveBeenCalledWith("/fridge");
   });
 });

@@ -71,6 +71,8 @@ class Settings(BaseSettings):
     spoonacular_api_key: str
     google_api_key: str
     redis_url: str = Field(default="redis://localhost:6379")
+    guest_chat_rate_limit_per_minute: int = Field(default=10, ge=1, le=1000)
+    guest_chat_rate_limit_per_day: int = Field(default=50, ge=1, le=100000)
     fridge_expiry_warning_days: int = Field(default=3, ge=1, le=30)
     fridge_default_timezone: str = Field(default="Asia/Ho_Chi_Minh", min_length=1)
     fridge_default_delivery_hour: int = Field(default=9, ge=0, le=23)

@@ -3,19 +3,28 @@
 The endpoint proxies user messages to the LLM Orchestrator, which manages
 Gemini, MCP tool-calling, and Redis-backed conversation memory.
 
-All routes require an authenticated session. The user's health profile is
-automatically injected into the AI's system prompt so responses are
-personalised (goals, allergies, dietary restrictions, etc.).
+Authenticated routes inject the user's health profile into the AI system
+prompt. The separate guest endpoint is temporary, non-personalized, and
+restricted to public nutrition and recipe capabilities.
 """
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from starlette import status
 
+from agents.orchestrator import ChatMode
+from core.config import Settings, get_settings
+from guest_chat.service import (
+    GUEST_COOKIE_NAME,
+    GUEST_COOKIE_PATH,
+    GuestChatRateLimitExceeded,
+    GuestIdentityCodec,
+)
 from health_profile.domain.entities import HealthProfile, HealthProfileOnboardingState
 from health_profile.service.profiles import HealthProfileService
 from health_profile.wiring import get_health_profile_service
@@ -131,6 +140,73 @@ async def chat(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"AI service temporarily unavailable: {exc}",
         ) from exc
+
+    return ChatResponse(session_id=body.session_id, reply=reply)
+
+
+@router.post(
+    "/guest",
+    response_model=ChatResponse,
+    summary="Send a message as an unauthenticated guest",
+)
+async def guest_chat(
+    request: Request,
+    response: Response,
+    body: ChatRequest,
+    settings: Settings = Depends(get_settings),
+) -> ChatResponse:
+    """Run a temporary, non-personalized guest conversation."""
+    identity = GuestIdentityCodec(settings.csrf_secret)
+    guest_id, cookie_value, should_set_cookie = identity.resolve(
+        request.cookies.get(GUEST_COOKIE_NAME)
+    )
+    remote_ip = request.client.host if request.client is not None else "unknown"
+
+    try:
+        await request.app.state.guest_chat_rate_limiter.check(
+            guest_id=guest_id,
+            remote_ip=remote_ip,
+        )
+    except GuestChatRateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Guest chat limit reached. Sign in to continue.",
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from exc
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "Guest chat rate limiter unavailable: %s", exc
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Guest chat is temporarily unavailable.",
+        ) from exc
+
+    try:
+        reply = await request.app.state.orchestrator.chat(
+            user_id=guest_id,
+            session_id=body.session_id,
+            user_message=body.message,
+            health_profile=None,
+            expiring_items=None,
+            mode=ChatMode.GUEST,
+        )
+    except Exception as exc:
+        logging.getLogger(__name__).exception("Guest chat orchestrator failed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI service temporarily unavailable.",
+        ) from exc
+
+    if should_set_cookie:
+        response.set_cookie(
+            key=GUEST_COOKIE_NAME,
+            value=cookie_value,
+            path=GUEST_COOKIE_PATH,
+            httponly=True,
+            secure=settings.cookie_secure,
+            samesite=settings.cookie_samesite,
+        )
 
     return ChatResponse(session_id=body.session_id, reply=reply)
 

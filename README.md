@@ -1,12 +1,13 @@
 # Bitenary
 
-Bitenary is an authenticated nutrition and meal-planning platform with a React
+Bitenary is a nutrition and meal-planning platform with a React
 web application, a FastAPI backend, and a Streamable HTTP MCP server for Codex
 and Claude.
 
 ## Features
 
 - Authentik OIDC login and signup using Authorization Code with PKCE.
+- Temporary guest AI chat with nutrition/recipe tools and Redis rate limits.
 - Secure web cookies with CSRF protection and automatic access-token refresh.
 - Personal MCP connections for Codex and Claude.
 - One-time MCP token disclosure with HMAC-SHA-256 storage.
@@ -91,6 +92,10 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 Use separate generated values for `OIDC_STATE_SECRET`, `CSRF_SECRET`, and
 `MCP_TOKEN_PEPPER` in `src/backend/.env`.
+
+Guest chat defaults to 10 requests per minute and 50 requests per day for both
+the guest identity and source IP. Override `GUEST_CHAT_RATE_LIMIT_PER_MINUTE`
+and `GUEST_CHAT_RATE_LIMIT_PER_DAY` in `src/backend/.env` when needed.
 
 ### 2. Start infrastructure
 

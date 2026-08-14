@@ -21,6 +21,7 @@ User message
 from __future__ import annotations
 
 import logging
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -53,6 +54,15 @@ _MAX_HISTORY_TURNS = 10
 # Redis key template: chat:v1:<user_id>:<session_id>
 # Using user_id prefix ensures one user cannot access another user's history.
 _REDIS_KEY_PREFIX = "chat:v1:"
+
+_GUEST_TOOL_NAMES = frozenset(
+    {"calculate_nutrition", "search_recipes", "get_recipe_details"}
+)
+
+
+class ChatMode(StrEnum):
+    AUTHENTICATED = "authenticated"
+    GUEST = "guest"
 
 
 class BitenaryChatOrchestrator:
@@ -120,6 +130,7 @@ class BitenaryChatOrchestrator:
         user_message: str,
         health_profile: "HealthProfile | None" = None,
         expiring_items: "tuple[FridgeItem, ...] | None" = None,
+        mode: ChatMode = ChatMode.AUTHENTICATED,
     ) -> str:
         """Process one chat turn and return the AI's response.
 
@@ -153,7 +164,11 @@ class BitenaryChatOrchestrator:
 
         # 2. Build personalised system prompt using the user's health profile
         # and any fridge items that are expiring soon (proactive push context).
-        system_prompt = build_system_prompt(health_profile, expiring_items=expiring_items)
+        system_prompt = build_system_prompt(
+            health_profile,
+            expiring_items=expiring_items,
+            is_guest=mode == ChatMode.GUEST,
+        )
 
         # 3. Build the full messages list for the agent
         messages: list[BaseMessage] = [
@@ -168,6 +183,12 @@ class BitenaryChatOrchestrator:
         mcp_client = MultiServerMCPClient(mcp_config)
         try:
             tools = await mcp_client.get_tools()
+            if mode == ChatMode.GUEST:
+                tools = [
+                    tool
+                    for tool in tools
+                    if getattr(tool, "name", None) in _GUEST_TOOL_NAMES
+                ]
             logger.debug("Session %s/%s: loaded %d MCP tools.", user_id, session_id, len(tools))
     
             agent = create_react_agent(self._llm, tools)
@@ -182,7 +203,13 @@ class BitenaryChatOrchestrator:
         reply = _extract_reply(result)
 
         # 6. Persist this turn back to Redis
-        await self._save_turn(user_id, session_id, user_message, reply)
+        await self._save_turn(
+            user_id,
+            session_id,
+            user_message,
+            reply,
+            persist_durably=mode == ChatMode.AUTHENTICATED,
+        )
         logger.debug("Session %s/%s: saved turn to Redis.", user_id, session_id)
 
         return reply
@@ -259,6 +286,8 @@ class BitenaryChatOrchestrator:
         session_id: str,
         user_message: str,
         ai_reply: str,
+        *,
+        persist_durably: bool = True,
     ) -> None:
         """Append this turn to Redis (hot cache) and sync to Postgres (durable)."""
         key = _make_redis_key(user_id, session_id)
@@ -268,12 +297,13 @@ class BitenaryChatOrchestrator:
         # Durable write-through: sync to Postgres in the background.
         # Errors are swallowed inside ChatHistoryService so a DB hiccup never
         # blocks the chat response from reaching the user.
-        await self._chat_history.sync_turn(
-            user_id=user_id,
-            session_id=session_id,
-            human_message=user_message,
-            ai_reply=ai_reply,
-        )
+        if persist_durably:
+            await self._chat_history.sync_turn(
+                user_id=user_id,
+                session_id=session_id,
+                human_message=user_message,
+                ai_reply=ai_reply,
+            )
 
 
 def _make_redis_key(user_id: "UUID", session_id: str) -> str:
