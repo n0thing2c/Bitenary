@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from app.main import create_app
+from core.csrf import CSRF_COOKIE_NAME
 from identity.delivery.cookies import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME
 from identity.domain.entities import CurrentUser, User, UserStatus
 from identity.domain.errors import AuthenticationError
@@ -187,6 +188,39 @@ def test_refresh_rejects_missing_csrf(client: TestClient) -> None:
     assert response.status_code == 403
 
 
+def test_refresh_without_refresh_cookie_clears_auth_cookies(
+    client: TestClient,
+) -> None:
+    client.cookies.set(CSRF_COOKIE_NAME, "csrf-token")
+    client.cookies.set(ACCESS_COOKIE_NAME, "stale-access-token")
+
+    response = client.post(
+        "/api/auth/refresh",
+        headers={"X-CSRF-Token": "csrf-token"},
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Not authenticated"}
+    assert_cookies_cleared(response)
+
+
+def test_refresh_failure_clears_auth_cookies(client: TestClient) -> None:
+    fake_auth = FakeAuthService(token_set=None)
+    client.app.dependency_overrides[get_auth_service] = lambda: fake_auth
+    client.cookies.set(CSRF_COOKIE_NAME, "csrf-token")
+    client.cookies.set(ACCESS_COOKIE_NAME, "stale-access-token")
+    client.cookies.set(REFRESH_COOKIE_NAME, "invalid-refresh-token")
+
+    response = client.post(
+        "/api/auth/refresh",
+        headers={"X-CSRF-Token": "csrf-token"},
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Not authenticated"}
+    assert_cookies_cleared(response)
+
+
 def test_logout_revokes_refresh_and_clears_cookies(client: TestClient) -> None:
     fake_auth = FakeAuthService(token_set=None)
     client.app.dependency_overrides[get_auth_service] = lambda: fake_auth
@@ -203,3 +237,12 @@ def test_logout_revokes_refresh_and_clears_cookies(client: TestClient) -> None:
     set_cookie = response.headers.get_list("set-cookie")
     assert any(f"{ACCESS_COOKIE_NAME}=" in cookie and "Max-Age=0" in cookie for cookie in set_cookie)
     assert any(f"{REFRESH_COOKIE_NAME}=" in cookie and "Max-Age=0" in cookie for cookie in set_cookie)
+
+
+def assert_cookies_cleared(response) -> None:
+    set_cookie = response.headers.get_list("set-cookie")
+    for cookie_name in (ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME, CSRF_COOKIE_NAME):
+        assert any(
+            f"{cookie_name}=" in cookie and "Max-Age=0" in cookie
+            for cookie in set_cookie
+        )

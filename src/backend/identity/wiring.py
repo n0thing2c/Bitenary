@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+import logging
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,9 @@ from identity.repository.users import UserRepository
 from identity.service.auth_service import AuthService
 from identity.service.current_user import CurrentUserService
 from identity.service.oidc_transaction import OidcTransactionService
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_user_repository(
@@ -68,6 +72,10 @@ async def get_current_user(
 ) -> CurrentUser:
     access_token = request.cookies.get(ACCESS_COOKIE_NAME)
     if not access_token:
+        logger.info(
+            "Authentication rejected: access cookie missing path=%s",
+            request.url.path,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
@@ -81,6 +89,10 @@ async def get_current_user(
             detail="User is disabled",
         ) from exc
     except AuthenticationError as exc:
+        logger.info(
+            "Authentication rejected: access token or local user invalid path=%s",
+            request.url.path,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",

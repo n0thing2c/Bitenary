@@ -1,7 +1,8 @@
+import logging
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from core.config import Settings, get_settings
 from core.csrf import CSRF_COOKIE_NAME, verify_csrf_token
@@ -24,6 +25,7 @@ from identity.wiring import get_auth_service, get_current_user, get_oidc_transac
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/login")
@@ -101,19 +103,14 @@ async def refresh(
     verify_csrf_token(request)
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     if not refresh_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
+        logger.info("Session refresh rejected: refresh cookie missing")
+        return cleared_unauthorized_response(settings)
 
     try:
         token_set = await auth_service.refresh(refresh_token)
-    except AuthenticationError as exc:
-        clear_auth_cookies(response, settings=settings)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        ) from exc
+    except AuthenticationError:
+        logger.info("Session refresh rejected: refresh token invalid")
+        return cleared_unauthorized_response(settings)
 
     set_auth_cookies(
         response,
@@ -126,6 +123,15 @@ async def refresh(
         settings=settings,
         token=request.cookies.get(CSRF_COOKIE_NAME),
     )
+    return response
+
+
+def cleared_unauthorized_response(settings: Settings) -> JSONResponse:
+    response = JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"detail": "Not authenticated"},
+    )
+    clear_auth_cookies(response, settings=settings)
     return response
 
 
