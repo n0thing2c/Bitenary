@@ -1,10 +1,9 @@
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from core.config import Settings, get_settings
-from core.csrf import verify_csrf_token
 from identity.domain.entities import CurrentUser
 from identity.wiring import get_current_user
 from virtual_fridge.delivery.dto import (
@@ -89,12 +88,10 @@ async def list_fridge_items(
 )
 async def create_fridge_item(
     payload: CreateFridgeItemRequest,
-    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     service: VirtualFridgeService = Depends(get_virtual_fridge_service),
     settings: Settings = Depends(get_settings),
 ) -> FridgeItemResponse:
-    verify_csrf_token(request)
     try:
         item = await service.create_item(
             user_id=current_user.user_id,
@@ -141,11 +138,9 @@ async def get_notification_settings(
 )
 async def update_notification_settings(
     payload: ExpiryNotificationSettingsRequest,
-    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     service: ExpiryNotificationService = Depends(get_expiry_notification_service),
 ) -> ExpiryNotificationSettingsResponse:
-    verify_csrf_token(request)
     try:
         saved = await service.save_settings(
             user_id=current_user.user_id,
@@ -184,12 +179,10 @@ async def get_fridge_item(
 async def update_fridge_item(
     fridge_item_id: UUID,
     payload: UpdateFridgeItemRequest,
-    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     service: VirtualFridgeService = Depends(get_virtual_fridge_service),
     settings: Settings = Depends(get_settings),
 ) -> FridgeItemResponse:
-    verify_csrf_token(request)
     try:
         item = await service.update_item(
             user_id=current_user.user_id,
@@ -215,11 +208,9 @@ async def update_fridge_item(
 )
 async def delete_fridge_item(
     fridge_item_id: UUID,
-    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     service: VirtualFridgeService = Depends(get_virtual_fridge_service),
 ) -> None:
-    verify_csrf_token(request)
     try:
         await service.delete_item(
             user_id=current_user.user_id,
@@ -250,11 +241,9 @@ async def list_notifications(
 
 @notifications_router.patch("/read-all", response_model=MarkAllReadResponse)
 async def mark_all_notifications_read(
-    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     service: ExpiryNotificationService = Depends(get_expiry_notification_service),
 ) -> MarkAllReadResponse:
-    verify_csrf_token(request)
     updated = await service.mark_all_read(user_id=current_user.user_id)
     return MarkAllReadResponse(updated=updated)
 
@@ -265,11 +254,9 @@ async def mark_all_notifications_read(
 )
 async def mark_notification_read(
     notification_id: UUID,
-    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     service: ExpiryNotificationService = Depends(get_expiry_notification_service),
 ) -> NotificationResponse:
-    verify_csrf_token(request)
     try:
         notification = await service.mark_read(
             user_id=current_user.user_id,

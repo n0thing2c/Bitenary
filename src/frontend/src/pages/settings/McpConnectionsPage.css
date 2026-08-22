@@ -1,0 +1,89 @@
+.mcp-connections-page {
+  min-height: 100%;
+  color: var(--color-ink);
+}
+
+.mcp-connections-page__header {
+  min-height: 126px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-8);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.mcp-connections-page__header p {
+  margin: 0 0 var(--space-2);
+  color: var(--color-accent);
+  font-family: "Courier New", monospace;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.mcp-connections-page__header h1 {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+}
+
+.mcp-connections-page__header div > span {
+  display: block;
+  max-width: 620px;
+  margin-top: var(--space-2);
+  color: var(--color-ink-3);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.mcp-connections-page__header a {
+  min-height: 38px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-decoration: none;
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+
+.mcp-connections-page__header a:hover,
+.mcp-connections-page__header a:focus-visible {
+  border-color: var(--color-border-focus);
+  background: var(--color-accent-dim);
+  color: var(--color-accent-hover);
+  outline: none;
+}
+
+.mcp-connections-page__content {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--color-paper);
+}
+
+@media (max-width: 640px) {
+  .mcp-connections-page__header {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: var(--space-5);
+  }
+
+  .mcp-connections-page__header a {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .mcp-connections-page__content {
+    padding: var(--space-4);
+  }
+}

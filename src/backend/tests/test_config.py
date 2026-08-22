@@ -43,10 +43,25 @@ def test_production_rejects_weak_mcp_token_pepper(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("CSRF_SECRET", "c" * 32)
     monkeypatch.setenv("MCP_TOKEN_PEPPER", "replace-me")
     get_settings.cache_clear()
 
     with pytest.raises(ValueError, match="MCP_TOKEN_PEPPER"):
+        get_settings()
+
+    get_settings.cache_clear()
+
+
+def test_production_rejects_weak_csrf_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("CSRF_SECRET", "replace-me")
+    monkeypatch.setenv("MCP_TOKEN_PEPPER", "m" * 32)
+    get_settings.cache_clear()
+
+    with pytest.raises(ValueError, match="CSRF_SECRET"):
         get_settings()
 
     get_settings.cache_clear()

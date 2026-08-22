@@ -9,6 +9,8 @@ from bitenary_mcp.infrastructure.spoonacular import SpoonacularClient
 from bitenary_mcp.infrastructure.token_verifier import BitenaryMCPTokenVerifier
 from bitenary_mcp.service.auditing import MCPInvocationAuditor
 from bitenary_mcp.service.tokens import MCPTokenCodec
+from bitenary_mcp.tools.fridge import build_add_to_fridge_tool, build_fridge_inventory_tool
+from bitenary_mcp.tools.meal_plan import build_save_meal_plan_tool
 from bitenary_mcp.tools.nutrition import build_nutrition_tool
 from bitenary_mcp.tools.recipe import build_recipe_search_tool, build_recipe_details_tool
 from bitenary_mcp.tools.status import build_status_tool
@@ -46,6 +48,33 @@ def create_mcp_server(settings: Settings) -> FastMCP:
     mcp_server.add_tool(build_nutrition_tool(auditor, spoonacular), name="calculate_nutrition")
     mcp_server.add_tool(build_recipe_search_tool(auditor, spoonacular), name="search_recipes")
     mcp_server.add_tool(build_recipe_details_tool(auditor, spoonacular), name="get_recipe_details")
+    # Fridge tool: the builder receives the session factory and settings so it
+    # can create a fresh DB session per invocation, consistent with the auditor.
+    mcp_server.add_tool(
+        build_fridge_inventory_tool(
+            auditor=auditor,
+            session_factory=AsyncSessionLocal,
+            warning_days=settings.fridge_expiry_warning_days,
+        ),
+        name="get_fridge_inventory",
+    )
+    # Meal Plan tool: AI calls this only after user explicitly approves a plan.
+    mcp_server.add_tool(
+        build_save_meal_plan_tool(
+            auditor=auditor,
+            session_factory=AsyncSessionLocal,
+        ),
+        name="save_meal_plan",
+    )
+    # Add to Fridge tool: AI calls this when user mentions buying new groceries.
+    mcp_server.add_tool(
+        build_add_to_fridge_tool(
+            auditor=auditor,
+            session_factory=AsyncSessionLocal,
+            warning_days=settings.fridge_expiry_warning_days,
+        ),
+        name="add_to_fridge",
+    )
     return mcp_server
 
 

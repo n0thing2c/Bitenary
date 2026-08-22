@@ -5,6 +5,7 @@ from uuid import UUID
 
 
 class MCPClientType(StrEnum):
+    INTERNAL_AGENT = "INTERNAL_AGENT"
     CODEX = "CODEX"
     CLAUDE = "CLAUDE"
 

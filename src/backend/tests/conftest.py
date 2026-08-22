@@ -9,6 +9,7 @@ sys.path.insert(0, str(BACKEND_ROOT))
 # Enable asyncio mode for all async test functions globally.
 # This removes the need to mark every async test with @pytest.mark.asyncio.
 import pytest
+from fastapi.testclient import TestClient
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "asyncio: mark test as async")
@@ -38,6 +39,7 @@ TEST_ENV = {
     "AUTHENTIK_END_SESSION_URL": (
         "http://localhost:9000/application/o/bitenary/end-session/"
     ),
+    "AUTHENTIK_USER_SETTINGS_URL": "http://localhost:9000/if/user/#/settings",
     "OIDC_REDIRECT_URI": "http://localhost:8000/api/auth/callback",
     "OIDC_SCOPE": "openid profile email offline_access",
     "OIDC_STATE_SECRET": "test-oidc-state-secret",
@@ -51,3 +53,11 @@ TEST_ENV = {
 
 for key, value in TEST_ENV.items():
     os.environ.setdefault(key, value)
+
+
+def csrf_headers(client: TestClient) -> dict[str, str]:
+    """Issue a signed token through the same endpoint used by the frontend."""
+    response = client.get("/api/auth/csrf")
+    assert response.status_code == 200
+    token = response.json()["csrf_token"]
+    return {"X-CSRF-Token": token}

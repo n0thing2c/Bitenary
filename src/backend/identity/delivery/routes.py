@@ -1,10 +1,11 @@
+import logging
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from core.config import Settings, get_settings
-from core.csrf import CSRF_COOKIE_NAME, verify_csrf_token
+from core.csrf import CSRF_COOKIE_NAME
 from identity.delivery.cookies import (
     REFRESH_COOKIE_NAME,
     clear_auth_cookies,
@@ -24,6 +25,7 @@ from identity.wiring import get_auth_service, get_current_user, get_oidc_transac
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/login")
@@ -98,22 +100,16 @@ async def refresh(
     auth_service: AuthService = Depends(get_auth_service),
 ) -> Response:
     response.status_code = status.HTTP_204_NO_CONTENT
-    verify_csrf_token(request)
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     if not refresh_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
+        logger.info("Session refresh rejected: refresh cookie missing")
+        return cleared_unauthorized_response(settings)
 
     try:
         token_set = await auth_service.refresh(refresh_token)
-    except AuthenticationError as exc:
-        clear_auth_cookies(response, settings=settings)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        ) from exc
+    except AuthenticationError:
+        logger.info("Session refresh rejected: refresh token invalid")
+        return cleared_unauthorized_response(settings)
 
     set_auth_cookies(
         response,
@@ -129,6 +125,15 @@ async def refresh(
     return response
 
 
+def cleared_unauthorized_response(settings: Settings) -> JSONResponse:
+    response = JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"detail": "Not authenticated"},
+    )
+    clear_auth_cookies(response, settings=settings)
+    return response
+
+
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     request: Request,
@@ -137,7 +142,6 @@ async def logout(
     auth_service: AuthService = Depends(get_auth_service),
 ) -> Response:
     response.status_code = status.HTTP_204_NO_CONTENT
-    verify_csrf_token(request)
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     try:
         await auth_service.logout(refresh_token)
@@ -145,6 +149,24 @@ async def logout(
         pass
     clear_auth_cookies(response, settings=settings)
     return response
+
+
+@router.get("/end-session")
+def end_session(settings: Settings = Depends(get_settings)) -> RedirectResponse:
+    return RedirectResponse(
+        settings.authentik_end_session_url,
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
+@router.get("/account-settings")
+def account_settings(
+    settings: Settings = Depends(get_settings),
+) -> RedirectResponse:
+    return RedirectResponse(
+        settings.authentik_user_settings_url,
+        status_code=status.HTTP_302_FOUND,
+    )
 
 
 @router.get("/csrf", response_model=CsrfResponse)

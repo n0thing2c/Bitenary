@@ -4,6 +4,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 import pytest
 
+from conftest import csrf_headers
 from app.main import create_app
 from bitenary_mcp.domain.entities import (
     CreatedMCPConnection,
@@ -89,11 +90,9 @@ def test_create_connection_discloses_token_once_and_safe_snippets(
     mcp_route_client: tuple[TestClient, FakeConnectionService, CurrentUser],
 ) -> None:
     client, _service, _user = mcp_route_client
-    client.cookies.set("bitenary_csrf", "csrf-token")
-
     response = client.post(
         "/api/mcp-connections",
-        headers={"X-CSRF-Token": "csrf-token"},
+        headers=csrf_headers(client),
         json={"client_type": "CODEX", "display_name": "  My Codex  "},
     )
 
@@ -126,12 +125,11 @@ def test_revoke_is_owner_scoped_and_requires_csrf(
     mcp_route_client: tuple[TestClient, FakeConnectionService, CurrentUser],
 ) -> None:
     client, service, _user = mcp_route_client
-    client.cookies.set("bitenary_csrf", "csrf-token")
     service.fail_revoke = True
 
     response = client.delete(
         f"/api/mcp-connections/{service.connection.client_id}",
-        headers={"X-CSRF-Token": "csrf-token"},
+        headers=csrf_headers(client),
     )
 
     assert response.status_code == 404

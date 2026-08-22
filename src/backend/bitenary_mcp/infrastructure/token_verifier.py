@@ -8,6 +8,9 @@ from bitenary_mcp.infrastructure.sqlalchemy_mcp import (
 from bitenary_mcp.service.authentication import MCPAuthenticationService
 from bitenary_mcp.service.tokens import MCPTokenCodec
 
+_INTERNAL_CLIENT_ID = "00000000-0000-0000-0000-000000000000"
+_INTERNAL_CLIENT_TYPE = "INTERNAL_AGENT"
+
 
 class BitenaryMCPTokenVerifier:
     def __init__(
@@ -20,6 +23,20 @@ class BitenaryMCPTokenVerifier:
         self._token_codec = token_codec
 
     async def verify_token(self, token: str) -> AccessToken | None:
+        # Fast path: internal tokens are signed by the server's own pepper
+        # and do not require a database round-trip. The Orchestrator uses these
+        # to authenticate itself when it calls the MCP server in-process.
+        user_id = self._token_codec.verify_internal_token(token)
+        if user_id is not None:
+            return AccessToken(
+                token="[internal]",
+                client_id=_INTERNAL_CLIENT_ID,
+                subject=str(user_id),
+                scopes=["mcp"],
+                claims={"client_type": _INTERNAL_CLIENT_TYPE},
+            )
+
+        # Standard path: look up the hashed token in the database.
         async with self._session_factory() as session:
             repository = SqlAlchemyMCPClientRepository(session)
             service = MCPAuthenticationService(

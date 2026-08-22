@@ -9,8 +9,11 @@ from starlette import status
 from agents.orchestrator import BitenaryChatOrchestrator
 from api.routers import router as api_router
 from bitenary_mcp.server import create_mcp_server
+from bitenary_mcp.service.tokens import MCPTokenCodec
 from core.config import Settings, get_settings
+from core.csrf import CSRFMiddleware
 from core.database import AsyncSessionLocal
+from guest_chat.service import GuestChatRateLimiter
 from ingredients.infrastructure.sqlalchemy_ingredients import SqlAlchemyIngredientRepository
 
 
@@ -45,11 +48,23 @@ def create_app() -> FastAPI:
                 "Ingredient seed skipped (table not ready?): %s", exc
             )
 
-        orchestrator = BitenaryChatOrchestrator(settings)
+        orchestrator = BitenaryChatOrchestrator(
+            settings,
+            MCPTokenCodec(settings.mcp_token_pepper),
+            AsyncSessionLocal,
+        )
         _app.state.orchestrator = orchestrator
+        guest_chat_rate_limiter = GuestChatRateLimiter(
+            settings.redis_url,
+            per_minute=settings.guest_chat_rate_limit_per_minute,
+            per_day=settings.guest_chat_rate_limit_per_day,
+        )
+        _app.state.guest_chat_rate_limiter = guest_chat_rate_limiter
         await orchestrator.startup()
+        await guest_chat_rate_limiter.startup()
         async with mcp_server.session_manager.run():
             yield
+        await guest_chat_rate_limiter.shutdown()
         await orchestrator.shutdown()
 
     app = FastAPI(
@@ -58,6 +73,13 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Add CSRF first so CORS remains the outer middleware and decorates CSRF
+    # rejection responses for the configured browser origins.
+    app.add_middleware(
+        CSRFMiddleware,
+        secret=settings.csrf_secret,
+        protected_prefix="/api",
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.frontend_origin_list,

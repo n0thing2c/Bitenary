@@ -10,7 +10,6 @@
 }
 
 .fridge-page {
-  min-height: 100vh;
   color: #183b42;
 }
 
@@ -24,7 +23,6 @@
   gap: 24px;
   padding: 22px 32px;
   border-bottom: 1px solid #dfe7e8;
-  background: rgba(251, 253, 252, 0.95);
 }
 
 .fridge-page__header > div:first-child p,

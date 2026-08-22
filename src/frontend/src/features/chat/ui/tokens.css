@@ -1,0 +1,77 @@
+/* Hallmark · macrostructure: Workbench · tone: utilitarian · anchor hue: teal-cobalt
+ * genre: modern-minimal · theme: Cobalt (custom-tuned)
+ * fonts: DM Sans (display) + Inter (body)
+ * pre-emit critique: P5 H5 E5 S4 R5 V4
+ */
+
+/* ─── Google Fonts ─────────────────────────────────── */
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;450;500;600&display=swap");
+
+/* ─── Colour tokens (OKLCH) ────────────────────────── */
+:root {
+  /* Paper */
+  --color-paper:        oklch(98% 0.004 200);
+  --color-paper-2:      oklch(96% 0.006 200);
+  --color-paper-3:      oklch(93% 0.009 200);
+  --color-surface:      oklch(100% 0 0);
+
+  /* Ink */
+  --color-ink:          oklch(18% 0.02 220);
+  --color-ink-2:        oklch(38% 0.02 220);
+  --color-ink-3:        oklch(58% 0.015 220);
+  --color-ink-4:        oklch(72% 0.010 220);
+
+  /* Accent — teal-cobalt */
+  --color-accent:       oklch(52% 0.17 196);
+  --color-accent-dim:   oklch(52% 0.17 196 / 0.12);
+  --color-accent-hover: oklch(46% 0.17 196);
+
+  /* Semantic */
+  --color-border:       oklch(88% 0.010 210);
+  --color-border-focus: oklch(52% 0.17 196);
+  --color-error:        oklch(56% 0.20 27);
+  --color-error-dim:    oklch(56% 0.20 27 / 0.10);
+
+  /* Message bubbles */
+  --color-bubble-user:  oklch(52% 0.17 196);
+  --color-bubble-ai:    oklch(96% 0.006 200);
+
+  /* ─── Typography tokens ──────────────────────────── */
+  --font-display: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-body:    "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --text-xs:   0.6875rem;  /* 11px */
+  --text-sm:   0.8125rem;  /* 13px */
+  --text-base: 0.9375rem;  /* 15px */
+  --text-lg:   1.125rem;   /* 18px */
+  --text-xl:   1.375rem;   /* 22px */
+  --text-2xl:  1.75rem;    /* 28px */
+
+  /* ─── Spacing (4pt scale) ───────────────────────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ─── Radius ────────────────────────────────────── */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   16px;
+  --radius-pill: 999px;
+
+  /* ─── Motion (transform + opacity only) ─────────── */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:     cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast:    120ms;
+  --dur-base:    200ms;
+  --dur-slow:    320ms;
+
+  /* ─── Sidebar width ─────────────────────────────── */
+  --sidebar-w: 240px;
+}

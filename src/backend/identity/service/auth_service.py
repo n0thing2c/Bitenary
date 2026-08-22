@@ -30,13 +30,26 @@ class AuthService:
             code=code,
             code_verifier=transaction.code_verifier,
         )
-        claims = await self._jwt_verifier.verify_access_token(token_set.access_token)
-        if claims.get("nonce") and claims.get("nonce") != transaction.nonce:
-            raise AuthenticationError("Invalid OIDC nonce")
+        if not token_set.id_token:
+            raise AuthenticationError("Token response is missing ID token")
+
+        id_token_claims = await self._jwt_verifier.verify_id_token(
+            token_set.id_token,
+            expected_nonce=transaction.nonce,
+        )
+        id_token_subject = _required_subject(id_token_claims, "ID token")
+
+        access_token_claims = await self._jwt_verifier.verify_access_token(
+            token_set.access_token
+        )
+        access_token_subject = _required_subject(access_token_claims, "Access token")
+        if access_token_subject != id_token_subject:
+            raise AuthenticationError("OIDC token subjects do not match")
 
         profile = await self._profile_from_claims_or_userinfo(
-            claims,
+            {**access_token_claims, **id_token_claims},
             token_set.access_token,
+            expected_subject=id_token_subject,
         )
         user = await self._user_repository.upsert_from_authentik_claims(**profile)
         return token_set, user
@@ -53,14 +66,28 @@ class AuthService:
         self,
         claims: dict[str, Any],
         access_token: str,
+        *,
+        expected_subject: str,
     ) -> dict[str, str | None]:
         profile = extract_profile(claims)
         if profile["username"] and profile["authentik_sub"] and profile["email"]:
             return profile
 
         userinfo = await self._authentik_client.userinfo(access_token)
-        merged = {**claims, **userinfo}
+        if not isinstance(userinfo, dict):
+            raise AuthenticationError("Invalid UserInfo response")
+        if userinfo.get("sub") != expected_subject:
+            raise AuthenticationError("UserInfo subject does not match ID token")
+
+        merged = {**claims, **userinfo, "sub": expected_subject}
         return extract_profile(merged)
+
+
+def _required_subject(claims: dict[str, Any], token_name: str) -> str:
+    subject = claims.get("sub")
+    if not isinstance(subject, str) or not subject:
+        raise AuthenticationError(f"{token_name} is missing subject")
+    return subject
 
 
 def extract_profile(claims: dict[str, Any]) -> dict[str, str | None]:

@@ -2,18 +2,24 @@ import { env } from "../../../shared/config/env";
 import { apiGet, apiPost } from "../../../shared/api/httpClient";
 import type { CsrfResponse, CurrentUser } from "../model/types";
 
-const AUTH_RETURN_TO = "/";
-
-export function redirectToLogin(): void {
+export function redirectToLogin(returnTo = "/"): void {
+  const safeReturnTo =
+    returnTo.startsWith("/") &&
+    !returnTo.startsWith("//") &&
+    !returnTo.includes("\\")
+      ? returnTo
+      : "/";
   window.location.assign(
-    `${env.backendUrl}/api/auth/login?return_to=${encodeURIComponent(AUTH_RETURN_TO)}`,
+    `${env.backendUrl}/api/auth/login?return_to=${encodeURIComponent(safeReturnTo)}`,
   );
 }
 
-export function redirectToSignup(): void {
-  window.location.assign(
-    `${env.backendUrl}/api/auth/signup?return_to=${encodeURIComponent(AUTH_RETURN_TO)}`,
-  );
+export function redirectToEndSession(): void {
+  window.location.assign(`${env.backendUrl}/api/auth/end-session`);
+}
+
+export function redirectToAccountSettings(): void {
+  window.location.assign(`${env.backendUrl}/api/auth/account-settings`);
 }
 
 export async function getCurrentUser(): Promise<CurrentUser> {

@@ -21,26 +21,31 @@ User message
 from __future__ import annotations
 
 import logging
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
 from redis import asyncio as aioredis
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agents.prompts import build_system_prompt
+from bitenary_mcp.service.tokens import MCPTokenCodec
+from chat_history.domain.entities import ChatMessage, ChatSession
+from chat_history.service.history import ChatHistoryService
 from core.config import Settings
 
 if TYPE_CHECKING:
-    from uuid import UUID
-
     from health_profile.domain.entities import HealthProfile
+    from virtual_fridge.domain.entities import FridgeItem
 
 logger = logging.getLogger(__name__)
 
 # Default Gemini model — can be overridden via settings in the future.
-_GEMINI_MODEL = "gemini-3.0-flash"
+_GEMINI_MODEL = "gemini-3-flash-preview"
 
 # Maximum conversation history turns to send to Gemini.
 # Each "turn" = 1 HumanMessage + 1 AIMessage, so 10 turns = 20 messages.
@@ -50,25 +55,42 @@ _MAX_HISTORY_TURNS = 10
 # Using user_id prefix ensures one user cannot access another user's history.
 _REDIS_KEY_PREFIX = "chat:v1:"
 
+_GUEST_TOOL_NAMES = frozenset(
+    {"calculate_nutrition", "search_recipes", "get_recipe_details"}
+)
+
+
+class ChatMode(StrEnum):
+    AUTHENTICATED = "authenticated"
+    GUEST = "guest"
+
 
 class BitenaryChatOrchestrator:
     """Stateless orchestrator that processes one chat turn per ``chat`` call.
 
     The orchestrator is intentionally stateless itself — all persistence
-    happens in Redis. This makes it safe to instantiate once per app
-    lifetime and call concurrently from multiple requests.
+    is split between two stores:
 
-    Usage::
+    - **Redis**: Hot cache for the active conversation window. Fast O(1) reads,
+      24-hour TTL. Used as the authoritative source when loading context into
+      the LLM (per the architecture requirement).
+    - **Postgres**: Durable write-through store. Every turn is synced here in
+      the background so users can access their full history beyond the Redis
+      TTL window (powers the Sidebar / History UI).
 
-        orchestrator = BitenaryChatOrchestrator(settings)
-        response = await orchestrator.chat(
-            session_id="user-uuid-or-session-token",
-            user_message="a bowl of pho bao nhiêu calo?",
-        )
+    This makes it safe to instantiate once per app lifetime and call
+    concurrently from multiple requests.
     """
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        token_codec: MCPTokenCodec,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
         self._settings = settings
+        self._token_codec = token_codec
+        self._chat_history = ChatHistoryService(session_factory)
         self._llm = ChatGoogleGenerativeAI(
             model=_GEMINI_MODEL,
             google_api_key=settings.google_api_key,
@@ -107,6 +129,8 @@ class BitenaryChatOrchestrator:
         session_id: str,
         user_message: str,
         health_profile: "HealthProfile | None" = None,
+        expiring_items: "tuple[FridgeItem, ...] | None" = None,
+        mode: ChatMode = ChatMode.AUTHENTICATED,
     ) -> str:
         """Process one chat turn and return the AI's response.
 
@@ -118,6 +142,10 @@ class BitenaryChatOrchestrator:
             health_profile: The user's health profile, or ``None`` if the
                 user has not completed onboarding. The profile is injected
                 into the system prompt to personalise every AI response.
+            expiring_items: Fridge items that are expiring soon (Push context).
+                When provided, the system prompt will proactively instruct the
+                AI to remind the user and prioritise these ingredients.
+                Pass ``None`` (or omit) when no items are expiring.
 
         Returns:
             A plain-text string containing the assistant's reply.
@@ -135,7 +163,12 @@ class BitenaryChatOrchestrator:
         logger.debug("Session %s/%s: loaded %d history messages.", user_id, session_id, len(history))
 
         # 2. Build personalised system prompt using the user's health profile
-        system_prompt = build_system_prompt(health_profile)
+        # and any fridge items that are expiring soon (proactive push context).
+        system_prompt = build_system_prompt(
+            health_profile,
+            expiring_items=expiring_items,
+            is_guest=mode == ChatMode.GUEST,
+        )
 
         # 3. Build the full messages list for the agent
         messages: list[BaseMessage] = [
@@ -145,44 +178,84 @@ class BitenaryChatOrchestrator:
         ]
 
         # 4. Connect to MCP Server and invoke the agent
-        mcp_config = self._build_mcp_config()
-        async with MultiServerMCPClient(mcp_config) as mcp_client:
-            tools = mcp_client.get_tools()
+        mcp_config = self._build_mcp_config(user_id)
+        
+        mcp_client = MultiServerMCPClient(mcp_config)
+        try:
+            tools = await mcp_client.get_tools()
+            if mode == ChatMode.GUEST:
+                tools = [
+                    tool
+                    for tool in tools
+                    if getattr(tool, "name", None) in _GUEST_TOOL_NAMES
+                ]
             logger.debug("Session %s/%s: loaded %d MCP tools.", user_id, session_id, len(tools))
-
+    
             agent = create_react_agent(self._llm, tools)
             result: dict[str, Any] = await agent.ainvoke({"messages": messages})
+        finally:
+            if hasattr(mcp_client, "close"):
+                await mcp_client.close()
+            elif hasattr(mcp_client, "aclose"):
+                await mcp_client.aclose()
 
         # 5. Extract the final text reply
         reply = _extract_reply(result)
 
         # 6. Persist this turn back to Redis
-        await self._save_turn(user_id, session_id, user_message, reply)
+        await self._save_turn(
+            user_id,
+            session_id,
+            user_message,
+            reply,
+            persist_durably=mode == ChatMode.AUTHENTICATED,
+        )
         logger.debug("Session %s/%s: saved turn to Redis.", user_id, session_id)
 
         return reply
 
-    async def clear_history(self, user_id: "UUID", session_id: str) -> None:
-        """Delete the entire conversation history for a session."""
+    async def clear_history(self, user_id: UUID, session_id: str) -> None:
+        """Delete the entire conversation history for a session (Redis + Postgres)."""
         if self._redis:
             await self._redis.delete(_make_redis_key(user_id, session_id))
+        await self._chat_history.clear_session(
+            user_id=user_id,
+            session_id=session_id,
+        )
+
+    async def list_sessions(self, user_id: UUID, limit: int = 20) -> list[ChatSession]:
+        """List recent chat sessions from Postgres."""
+        return await self._chat_history.list_sessions(user_id, limit)
+
+    async def get_session_messages(
+        self, session_id: str, user_id: UUID
+    ) -> list[ChatMessage]:
+        """Get all messages for a session from Postgres."""
+        return await self._chat_history.get_session_messages(session_id, user_id)
 
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _build_mcp_config(self) -> dict[str, Any]:
+    def _build_mcp_config(self, user_id: "UUID") -> dict[str, Any]:
         """Build the MultiServerMCPClient config pointing to our own MCP server.
 
         We connect to the Bitenary MCP server via Streamable HTTP.
         This guarantees we speak the full MCP protocol (list_tools → call_tool)
         just like any external agent would.
+
+        An ephemeral internal token is generated per request and scoped to
+        ``user_id``. It is verified server-side via HMAC without a DB hit.
         """
         mcp_server_url = self._settings.backend_public_url.rstrip("/") + "/mcp"
+        token = self._token_codec.generate_internal_token(user_id)
         return {
             "bitenary": {
                 "transport": "streamable_http",
                 "url": mcp_server_url,
+                "headers": {
+                    "Authorization": f"Bearer {token}",
+                },
             }
         }
 
@@ -209,15 +282,28 @@ class BitenaryChatOrchestrator:
 
     async def _save_turn(
         self,
-        user_id: "UUID",
+        user_id: UUID,
         session_id: str,
         user_message: str,
         ai_reply: str,
+        *,
+        persist_durably: bool = True,
     ) -> None:
-        """Append this turn to the Redis list and set a 24-hour expiry."""
+        """Append this turn to Redis (hot cache) and sync to Postgres (durable)."""
         key = _make_redis_key(user_id, session_id)
         await self._redis.rpush(key, "human", user_message, "ai", ai_reply)  # type: ignore[union-attr]
         await self._redis.expire(key, 86400)  # 24 hours TTL
+
+        # Durable write-through: sync to Postgres in the background.
+        # Errors are swallowed inside ChatHistoryService so a DB hiccup never
+        # blocks the chat response from reaching the user.
+        if persist_durably:
+            await self._chat_history.sync_turn(
+                user_id=user_id,
+                session_id=session_id,
+                human_message=user_message,
+                ai_reply=ai_reply,
+            )
 
 
 def _make_redis_key(user_id: "UUID", session_id: str) -> str:
@@ -226,9 +312,27 @@ def _make_redis_key(user_id: "UUID", session_id: str) -> str:
 
 
 def _extract_reply(agent_result: dict[str, Any]) -> str:
-    """Pull the last AIMessage content from a LangGraph agent response."""
+    """Pull the last AIMessage content from a LangGraph agent response.
+
+    Gemini sometimes returns ``content`` as a list of content blocks
+    (e.g. ``[{"type": "text", "text": "..."}]``).  We normalise both
+    the plain-string and the list-of-blocks cases here.
+    """
     messages: list[BaseMessage] = agent_result.get("messages", [])
     for msg in reversed(messages):
         if isinstance(msg, AIMessage) and msg.content:
-            return str(msg.content)
+            content = msg.content
+            # Case 1: plain string
+            if isinstance(content, str):
+                return content
+            # Case 2: list of content blocks (Gemini multimodal format)
+            if isinstance(content, list):
+                text_parts = [
+                    block.get("text", "")
+                    for block in content
+                    if isinstance(block, dict) and block.get("type") == "text"
+                ]
+                joined = "\n".join(part for part in text_parts if part)
+                if joined:
+                    return joined
     return "Xin lỗi, tôi không thể tạo ra câu trả lời lúc này. Vui lòng thử lại."

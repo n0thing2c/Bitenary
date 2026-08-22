@@ -293,7 +293,6 @@ function PageHeader({ onEdit }: { onEdit?: () => void }) {
   return (
     <header className="health-profile-page__header">
       <div>
-        <p>Bitenary / Personal data</p>
         <h1>Health Profile</h1>
       </div>
       {onEdit ? (

@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
-from core.csrf import verify_csrf_token
 from health_profile.delivery.dto import (
     HealthProfileEnvelopeResponse,
     UpsertHealthProfileRequest,
@@ -37,11 +36,9 @@ async def get_health_profile(
 @router.put("", response_model=HealthProfileEnvelopeResponse)
 async def upsert_health_profile(
     payload: UpsertHealthProfileRequest,
-    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     service: HealthProfileService = Depends(get_health_profile_service),
 ) -> HealthProfileEnvelopeResponse:
-    verify_csrf_token(request)
     try:
         await service.save(
             user_id=current_user.user_id,
@@ -73,11 +70,9 @@ async def upsert_health_profile(
 
 @router.post("/onboarding/skip", status_code=status.HTTP_204_NO_CONTENT)
 async def skip_health_profile_onboarding(
-    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
     service: HealthProfileService = Depends(get_health_profile_service),
 ) -> None:
-    verify_csrf_token(request)
     try:
         await service.skip_onboarding(current_user.user_id)
     except HealthProfileOwnerNotFoundError as exc:

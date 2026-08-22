@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { getCurrentUser, logout } from "../api/authApi";
+import { AUTH_EXPIRED_EVENT } from "../../../shared/api/authEvents";
+import {
+  getCurrentUser,
+  logout,
+  redirectToEndSession,
+} from "../api/authApi";
 import type { CurrentUser } from "./types";
 
 type AuthState = {
@@ -30,19 +35,33 @@ export function useAuth() {
     setState((current) => ({ ...current, isLoading: true, error: null }));
     try {
       await logout();
-      setState({ user: null, isLoading: false, error: null });
     } catch {
-      setState({
-        user: null,
+      setState((current) => ({
+        ...current,
         isLoading: false,
         error: "Could not log out. Please try again.",
-      });
+      }));
+      return;
     }
+
+    setState({ user: null, isLoading: false, error: null });
+    redirectToEndSession();
   }, []);
 
   useEffect(() => {
     void loadUser();
   }, [loadUser]);
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      setState({ user: null, isLoading: false, error: null });
+    };
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    };
+  }, []);
 
   return {
     ...state,

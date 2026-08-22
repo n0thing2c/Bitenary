@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     authentik_revoke_url: str
     authentik_jwks_url: str
     authentik_end_session_url: str
+    authentik_user_settings_url: str
 
     oidc_redirect_uri: str
     oidc_scope: str
@@ -70,6 +71,8 @@ class Settings(BaseSettings):
     spoonacular_api_key: str
     google_api_key: str
     redis_url: str = Field(default="redis://localhost:6379")
+    guest_chat_rate_limit_per_minute: int = Field(default=10, ge=1, le=1000)
+    guest_chat_rate_limit_per_day: int = Field(default=50, ge=1, le=100000)
     fridge_expiry_warning_days: int = Field(default=3, ge=1, le=30)
     fridge_default_timezone: str = Field(default="Asia/Ho_Chi_Minh", min_length=1)
     fridge_default_delivery_hour: int = Field(default=9, ge=0, le=23)
@@ -80,13 +83,18 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
-        if self.environment.lower() == "production" and (
-            self.mcp_token_pepper == "replace-me"
-            or len(self.mcp_token_pepper) < 32
-        ):
-            raise ValueError(
-                "MCP_TOKEN_PEPPER must contain at least 32 characters in production"
-            )
+        if self.environment.lower() == "production":
+            if self.csrf_secret == "replace-me" or len(self.csrf_secret) < 32:
+                raise ValueError(
+                    "CSRF_SECRET must contain at least 32 characters in production"
+                )
+            if (
+                self.mcp_token_pepper == "replace-me"
+                or len(self.mcp_token_pepper) < 32
+            ):
+                raise ValueError(
+                    "MCP_TOKEN_PEPPER must contain at least 32 characters in production"
+                )
         return self
 
 

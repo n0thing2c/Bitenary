@@ -98,7 +98,6 @@ export function VirtualFridgePage() {
     <main className="fridge-page">
       <header className="fridge-page__header">
         <div>
-          <p>Bitenary / Inventory</p>
           <h1>Virtual Fridge</h1>
         </div>
         <div className="fridge-header-actions">
@@ -106,28 +105,7 @@ export function VirtualFridgePage() {
             {fridge.summary?.total_items ?? fridge.list.total} stored item
             {(fridge.summary?.total_items ?? fridge.list.total) === 1 ? "" : "s"}
           </span>
-          <div className="fridge-notification-anchor">
-            <button
-              className="fridge-icon-button"
-              type="button"
-              aria-label="Expiry notifications"
-              aria-expanded={showNotifications}
-              onClick={() => setShowNotifications((current) => !current)}
-            >
-              <Icon name="bell" />
-              {unreadCount > 0 ? (
-                <span className="fridge-icon-button__badge">{unreadCount}</span>
-              ) : null}
-            </button>
-            {showNotifications ? (
-              <NotificationCenter
-                notifications={fridge.notifications}
-                onRead={fridge.readNotification}
-                onReadAll={fridge.readAllNotifications}
-                onClose={() => setShowNotifications(false)}
-              />
-            ) : null}
-          </div>
+
           <button
             className="fridge-primary-button"
             type="button"

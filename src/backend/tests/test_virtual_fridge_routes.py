@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 from identity.domain.entities import CurrentUser, UserStatus
 from identity.wiring import get_current_user
+from conftest import csrf_headers
 from virtual_fridge.domain.entities import (
     CategoryCount,
     ExpiryNotificationSettings,
@@ -204,8 +205,7 @@ def fridge_client() -> tuple[
 
 
 def csrf(client: TestClient) -> dict[str, str]:
-    client.cookies.set("bitenary_csrf", "csrf-token")
-    return {"X-CSRF-Token": "csrf-token"}
+    return csrf_headers(client)
 
 
 def create_payload(ingredient_id: UUID) -> dict[str, object]:
