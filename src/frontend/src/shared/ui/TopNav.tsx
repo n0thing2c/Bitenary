@@ -97,8 +97,10 @@ export function TopNav({ user, isLoggingOut, onLogout }: Props) {
             <>
               <button
                 className="top-nav__icon-btn"
+                type="button"
                 aria-label="Notifications"
                 title="Notifications"
+                onClick={() => navigate("/fridge?notifications=open")}
               >
                 <IconBell />
               </button>

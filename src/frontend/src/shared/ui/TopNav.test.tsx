@@ -23,7 +23,7 @@ const user: CurrentUser = {
 
 function LocationProbe() {
   const location = useLocation();
-  return <span data-testid="location">{location.pathname}</span>;
+  return <span data-testid="location">{location.pathname}{location.search}</span>;
 }
 
 function renderTopNav() {
@@ -84,6 +84,16 @@ describe("TopNav settings", () => {
       expect(
         screen.getByRole("button", { name: "User menu for Ada" }),
       ).toHaveFocus(),
+    );
+  });
+
+  it("opens fridge expiry notifications from the bell", async () => {
+    renderTopNav();
+
+    await userEvent.click(screen.getByRole("button", { name: "Notifications" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/fridge?notifications=open",
     );
   });
 });

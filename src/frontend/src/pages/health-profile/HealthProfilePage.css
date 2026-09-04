@@ -22,7 +22,7 @@
   margin: 0 0 6px;
   color: #16847c;
   font-family: "Courier New", monospace;
-  font-size: 9px;
+  font-size: 10.8px;
   font-weight: 800;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -31,7 +31,7 @@
 .health-profile-page__header h1 {
   margin: 0;
   color: #153940;
-  font-size: 24px;
+  font-size: 28.8px;
 }
 
 .health-profile-page__header button {
@@ -44,7 +44,7 @@
   border-radius: 5px;
   background: #ffffff;
   color: #244d52;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   cursor: pointer;
 }
@@ -85,18 +85,18 @@
 .health-profile-panel__heading h2 {
   margin: 0;
   color: #153940;
-  font-size: 19px;
+  font-size: 22.8px;
 }
 
 .health-profile-panel__heading h2 {
-  font-size: 17px;
+  font-size: 20.4px;
 }
 
 .health-profile-panel__heading div > span {
   display: block;
   margin-top: 6px;
   color: #7b898c;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .health-profile-panel__badge {
@@ -104,7 +104,7 @@
   border-radius: 20px;
   background: #dff2ec;
   color: #11654f;
-  font-size: 8px;
+  font-size: 9.6px;
   font-weight: 850;
   letter-spacing: 0.6px;
   text-transform: uppercase;
@@ -131,19 +131,19 @@
   margin: 15px 0 4px;
   color: #153940;
   font-family: "Courier New", monospace;
-  font-size: 29px;
+  font-size: 34.8px;
   line-height: 1;
 }
 
 .health-profile-stat strong small {
   color: #65777a;
-  font-size: 11px;
+  font-size: 13.2px;
 }
 
 .health-profile-stat > span,
 .health-profile-detail > span {
   color: #7b898c;
-  font-size: 9px;
+  font-size: 10.8px;
   line-height: 1.45;
 }
 
@@ -155,7 +155,7 @@
   display: block;
   margin: 12px 0 6px;
   color: #19464a;
-  font-size: 15px;
+  font-size: 18px;
 }
 
 .health-profile-preference-grid {
@@ -182,7 +182,7 @@
 .health-profile-preference__tag {
   padding: 6px 9px;
   border-radius: 20px;
-  font-size: 9px;
+  font-size: 10.8px;
   font-weight: 700;
 }
 
@@ -208,7 +208,7 @@
 
 .health-profile-preference__empty {
   color: #929da0;
-  font-size: 10px;
+  font-size: 12px;
   font-style: italic;
 }
 
@@ -245,7 +245,7 @@
   border-radius: 50%;
   background: #dfeeed;
   color: #00645f;
-  font-size: 14px;
+  font-size: 16.8px;
   font-weight: 800;
 }
 
@@ -260,13 +260,13 @@
 
 .health-profile-account strong {
   color: #213f45;
-  font-size: 12px;
+  font-size: 14.4px;
 }
 
 .health-profile-account small {
   margin-top: 4px;
   color: #859194;
-  font-size: 9px;
+  font-size: 10.8px;
 }
 
 .health-profile-rail dl {
@@ -285,13 +285,13 @@
 
 .health-profile-rail dt {
   color: #718083;
-  font-size: 9px;
+  font-size: 10.8px;
 }
 
 .health-profile-rail dd {
   margin: 0;
   color: #31565a;
-  font-size: 9px;
+  font-size: 10.8px;
   font-weight: 750;
   text-transform: capitalize;
 }
@@ -314,19 +314,19 @@
   background: #cfe8e4;
   color: #076a63;
   font-family: Georgia, serif;
-  font-size: 12px;
+  font-size: 14.4px;
   font-weight: 700;
 }
 
 .health-profile-rail__notice strong {
   color: #245256;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .health-profile-rail__notice p {
   margin: 5px 0 0;
   color: #60777a;
-  font-size: 9px;
+  font-size: 10.8px;
   line-height: 1.5;
 }
 
@@ -350,7 +350,7 @@
   border-radius: 50%;
   color: #08766f;
   font-family: "Courier New", monospace;
-  font-size: 12px;
+  font-size: 14.4px;
   font-weight: 800;
 }
 
@@ -358,7 +358,7 @@
   margin: 0 0 7px;
   color: #15847c;
   font-family: "Courier New", monospace;
-  font-size: 9px;
+  font-size: 10.8px;
   font-weight: 800;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -367,7 +367,7 @@
 .health-profile-empty h1 {
   margin: 0;
   color: #153940;
-  font-size: 23px;
+  font-size: 27.6px;
 }
 
 .health-profile-empty > span:not(.health-profile-empty__number) {
@@ -375,7 +375,7 @@
   display: block;
   margin: 10px auto 25px;
   color: #748487;
-  font-size: 11px;
+  font-size: 13.2px;
   line-height: 1.6;
 }
 
@@ -385,7 +385,7 @@
   border-radius: 5px;
   background: #064d49;
   color: #ffffff;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   cursor: pointer;
 }
@@ -427,7 +427,7 @@
 .profile-drawer__header h2 {
   margin: 0;
   color: #153940;
-  font-size: 18px;
+  font-size: 21.6px;
 }
 
 .profile-drawer__header button {
@@ -438,7 +438,7 @@
   border-radius: 50%;
   background: transparent;
   color: #5d7174;
-  font-size: 24px;
+  font-size: 28.8px;
   line-height: 1;
   cursor: pointer;
 }
@@ -495,7 +495,7 @@
   }
 
   .health-profile-page__header h1 {
-    font-size: 21px;
+    font-size: 25.2px;
   }
 
   .health-profile-layout {

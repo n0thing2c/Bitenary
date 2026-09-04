@@ -9,6 +9,8 @@ import {
 } from "react";
 
 import {
+  INVALID_PREFERENCE_MESSAGE,
+  isValidPreferenceValue,
   profileToFormValues,
   toLocalDateInputValue,
   toUpsertRequest,
@@ -74,6 +76,9 @@ export function HealthProfileForm({
     profileToFormValues(profile),
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [preferenceDraftErrors, setPreferenceDraftErrors] = useState<
+    Record<string, string>
+  >({});
   const latestDateOfBirth = new Date();
   latestDateOfBirth.setDate(latestDateOfBirth.getDate() - 1);
   const maximumDateOfBirth = toLocalDateInputValue(latestDateOfBirth);
@@ -86,9 +91,25 @@ export function HealthProfileForm({
     setErrors((current) => ({ ...current, [field]: "" }));
   }
 
+  function updatePreferenceDraftError(field: string, message: string) {
+    setPreferenceDraftErrors((current) => {
+      const next = { ...current };
+      if (message) {
+        next[field] = message;
+      } else {
+        delete next[field];
+      }
+      return next;
+    });
+    setErrors((current) => ({ ...current, [field]: message }));
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextErrors = validateProfileForm(values);
+    const nextErrors = {
+      ...validateProfileForm(values),
+      ...preferenceDraftErrors,
+    };
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       return;
@@ -101,7 +122,11 @@ export function HealthProfileForm({
   }
 
   return (
-    <form className="health-profile-form" onSubmit={(event) => void handleSubmit(event)}>
+    <form
+      className="health-profile-form"
+      noValidate
+      onSubmit={(event) => void handleSubmit(event)}
+    >
       <fieldset disabled={isSaving}>
         <ProfileFormSection
           index="01"
@@ -257,6 +282,10 @@ export function HealthProfileForm({
             placeholder="e.g. peanuts"
             values={values.allergies}
             tone="danger"
+            error={errors.allergies}
+            onDraftErrorChange={(message) =>
+              updatePreferenceDraftError("allergies", message)
+            }
             onChange={(nextValues) => updateField("allergies", nextValues)}
           />
           <TagInput
@@ -264,6 +293,10 @@ export function HealthProfileForm({
             placeholder="e.g. lactose-free"
             values={values.dietaryRestrictions}
             tone="neutral"
+            error={errors.dietaryRestrictions}
+            onDraftErrorChange={(message) =>
+              updatePreferenceDraftError("dietaryRestrictions", message)
+            }
             onChange={(nextValues) =>
               updateField("dietaryRestrictions", nextValues)
             }
@@ -273,6 +306,10 @@ export function HealthProfileForm({
             placeholder="e.g. spicy"
             values={values.tastes}
             tone="positive"
+            error={errors.tastes}
+            onDraftErrorChange={(message) =>
+              updatePreferenceDraftError("tastes", message)
+            }
             onChange={(nextValues) => updateField("tastes", nextValues)}
           />
           <TagInput
@@ -280,6 +317,10 @@ export function HealthProfileForm({
             placeholder="e.g. mushrooms"
             values={values.dislikes}
             tone="warning"
+            error={errors.dislikes}
+            onDraftErrorChange={(message) =>
+              updatePreferenceDraftError("dislikes", message)
+            }
             onChange={(nextValues) => updateField("dislikes", nextValues)}
           />
         </ProfileFormSection>
@@ -390,12 +431,16 @@ function TagInput({
   placeholder,
   values,
   tone,
+  error,
+  onDraftErrorChange,
   onChange,
 }: {
   label: string;
   placeholder: string;
   values: string[];
   tone: "danger" | "neutral" | "positive" | "warning";
+  error?: string;
+  onDraftErrorChange: (message: string) => void;
   onChange: (values: string[]) => void;
 }) {
   const id = useId();
@@ -403,14 +448,21 @@ function TagInput({
 
   function addDraft() {
     const value = draft.trim().replace(/\s+/g, " ");
-    if (
-      !value ||
-      value.length > 100 ||
-      values.some((item) => item.toLowerCase() === value.toLowerCase())
-    ) {
+    if (!value) {
+      onDraftErrorChange("");
       setDraft("");
       return;
     }
+    if (!isValidPreferenceValue(value)) {
+      onDraftErrorChange(INVALID_PREFERENCE_MESSAGE);
+      return;
+    }
+    if (values.some((item) => item.toLowerCase() === value.toLowerCase())) {
+      onDraftErrorChange("");
+      setDraft("");
+      return;
+    }
+    onDraftErrorChange("");
     onChange([...values, value]);
     setDraft("");
   }
@@ -454,13 +506,22 @@ function TagInput({
             maxLength={100}
             placeholder={placeholder}
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            aria-invalid={Boolean(error)}
+            onChange={(event) => {
+              const nextDraft = event.target.value;
+              setDraft(nextDraft);
+              onDraftErrorChange(
+                nextDraft.trim() && !isValidPreferenceValue(nextDraft)
+                  ? INVALID_PREFERENCE_MESSAGE
+                  : "",
+              );
+            }}
             onKeyDown={handleKeyDown}
             onBlur={addDraft}
           />
           <button
             type="button"
-            disabled={!draft.trim()}
+            disabled={!draft.trim() || !isValidPreferenceValue(draft)}
             onMouseDown={(event) => event.preventDefault()}
             onClick={addDraft}
           >
@@ -468,6 +529,7 @@ function TagInput({
           </button>
         </div>
       </div>
+      <FieldError message={error} />
     </div>
   );
 }

@@ -29,7 +29,7 @@
 }
 
 .profile-setup-page__brand strong {
-  font-size: 20px;
+  font-size: 24px;
 }
 
 .profile-setup-page__brand > span:last-child {
@@ -37,7 +37,7 @@
   border-left: 1px solid #b9caca;
   color: #6e7e81;
   font-family: "Courier New", monospace;
-  font-size: 8px;
+  font-size: 9.6px;
   font-weight: 800;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -68,7 +68,7 @@
 .profile-setup-card__header p {
   margin: 0 0 5px;
   color: #15857d;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.7px;
   text-transform: uppercase;
@@ -77,14 +77,14 @@
 .profile-setup-card__header h1 {
   margin: 0;
   color: #123940;
-  font-size: 24px;
+  font-size: 28.8px;
 }
 
 .profile-setup-card__header div > span {
   display: block;
   margin-top: 6px;
   color: #748184;
-  font-size: 11px;
+  font-size: 13.2px;
 }
 
 .profile-setup-card__status {
@@ -93,7 +93,7 @@
   border-radius: 20px;
   background: #ffffff;
   color: #477075;
-  font-size: 9px;
+  font-size: 10.8px;
   font-weight: 750;
   white-space: nowrap;
 }
@@ -107,7 +107,7 @@
   border-radius: 5px;
   background: transparent;
   color: #647477;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
   cursor: pointer;
 }
@@ -124,7 +124,7 @@
 .profile-setup-page__privacy {
   margin: 18px auto 0;
   color: #819093;
-  font-size: 9px;
+  font-size: 10.8px;
   text-align: center;
 }
 

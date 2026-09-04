@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { searchIngredients } from "../../features/virtual-fridge/api/virtualFridgeApi";
 import type {
@@ -40,12 +41,13 @@ const DEFAULT_QUERY: InventoryQuery = {
 };
 
 export function VirtualFridgePage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState<InventoryQuery>(DEFAULT_QUERY);
   const [searchText, setSearchText] = useState("");
   const [drawerItem, setDrawerItem] = useState<FridgeItem | "new" | null>(null);
   const [deleteItem, setDeleteItem] = useState<FridgeItem | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
+  const showNotifications = searchParams.get("notifications") === "open";
   const fridge = useVirtualFridge(query);
 
   useEffect(() => {
@@ -70,6 +72,22 @@ export function VirtualFridgePage() {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [deleteItem, drawerItem, fridge.isSaving]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void fridge.loadNotifications();
+    }, 60_000);
+    return () => window.clearInterval(interval);
+  }, [fridge.loadNotifications]);
+
+  function setNotificationsOpen(open: boolean) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (open) next.set("notifications", "open");
+      else next.delete("notifications");
+      return next;
+    }, { replace: true });
+  }
 
   const activeFilterCount = [
     query.category,
@@ -105,6 +123,30 @@ export function VirtualFridgePage() {
             {fridge.summary?.total_items ?? fridge.list.total} stored item
             {(fridge.summary?.total_items ?? fridge.list.total) === 1 ? "" : "s"}
           </span>
+
+          <div className="fridge-notification-anchor">
+            <button
+              className="fridge-notification-button"
+              type="button"
+              aria-label="Notifications"
+              aria-expanded={showNotifications}
+              onClick={() => setNotificationsOpen(!showNotifications)}
+            >
+              <Icon name="bell" />
+              {unreadCount ? (
+                <span aria-label={`${unreadCount} unread notifications`}>
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              ) : null}
+            </button>
+            {showNotifications ? (
+              <NotificationCenter
+                notifications={fridge.notifications}
+                onRead={fridge.readNotification}
+                onClose={() => setNotificationsOpen(false)}
+              />
+            ) : null}
+          </div>
 
           <button
             className="fridge-primary-button"
@@ -426,12 +468,33 @@ function InventoryRail({
   ) => Promise<void>;
 }) {
   const [draft, setDraft] = useState<NotificationSettings | null>(settings);
+  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
   useEffect(() => setDraft(settings), [settings]);
   const nearestRisk = items.find((item) => item.expiry_status !== "FRESH");
   const maxCategoryCount = Math.max(
     1,
     ...(summary?.categories.map((category) => category.count) ?? []),
   );
+
+  async function saveReminderPolicy() {
+    if (!draft) return;
+    setSaveFeedback(null);
+    try {
+      await onSaveSettings({
+        enabled: draft.enabled,
+        warning_days: draft.warning_days,
+        timezone: draft.timezone,
+        delivery_hour: draft.delivery_hour,
+      });
+      setSaveFeedback(
+        draft.enabled
+          ? "Reminder policy saved. Expiry alerts are active."
+          : "Reminder policy saved. Expiry alerts are paused.",
+      );
+    } catch {
+      setSaveFeedback("Reminder policy could not be saved. Please try again.");
+    }
+  }
 
   return (
     <aside className="fridge-rail">
@@ -545,17 +608,15 @@ function InventoryRail({
           <button
             type="button"
             disabled={isSaving || sameSettings(draft, settings)}
-            onClick={() =>
-              void onSaveSettings({
-                enabled: draft.enabled,
-                warning_days: draft.warning_days,
-                timezone: draft.timezone,
-                delivery_hour: draft.delivery_hour,
-              })
-            }
+            onClick={() => void saveReminderPolicy()}
           >
             {isSaving ? "Saving..." : "Save reminder policy"}
           </button>
+          {saveFeedback ? (
+            <p className="fridge-reminder-settings__feedback" role="status">
+              {saveFeedback}
+            </p>
+          ) : null}
         </section>
       ) : null}
     </aside>
@@ -823,15 +884,12 @@ function DeleteDialog({
 function NotificationCenter({
   notifications,
   onRead,
-  onReadAll,
   onClose,
 }: {
   notifications: ExpiryNotification[];
   onRead: (id: string) => Promise<void>;
-  onReadAll: () => Promise<void>;
   onClose: () => void;
 }) {
-  const unread = notifications.filter((notification) => notification.status !== "READ");
   return (
     <section className="fridge-notifications" aria-label="Expiry notifications">
       <header>
@@ -855,7 +913,6 @@ function NotificationCenter({
       ) : (
         <div className="fridge-notifications__empty"><Icon name="bell" /><strong>No alerts yet</strong><span>Expiry reminders will appear here.</span></div>
       )}
-      {unread.length ? <button className="fridge-notifications__read-all" type="button" onClick={() => void onReadAll()}>Mark all as read</button> : null}
     </section>
   );
 }

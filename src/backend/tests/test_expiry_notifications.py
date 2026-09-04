@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -18,6 +19,7 @@ from virtual_fridge.domain.entities import (
 )
 from virtual_fridge.domain.errors import InvalidNotificationSettingsError
 from virtual_fridge.service.expiry_notifications import ExpiryNotificationService
+from virtual_fridge.jobs import scan_expiry
 
 
 def candidate(
@@ -167,3 +169,26 @@ async def test_expired_item_creates_expired_notification() -> None:
 
     assert result.created == 1
     assert repository.drafts[0].notification_type == NotificationType.EXPIRED
+
+
+@pytest.mark.asyncio
+async def test_scheduler_retries_after_temporary_scan_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    attempts = 0
+    retried = asyncio.Event()
+
+    async def fake_run_scan(_now: datetime | None = None) -> dict[str, int]:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("temporary database failure")
+        retried.set()
+        return {"scanned": 0, "created": 0, "skipped": 0}
+
+    monkeypatch.setattr(scan_expiry, "run_scan", fake_run_scan)
+    task = asyncio.create_task(scan_expiry.run_scheduler(0))
+    await asyncio.wait_for(retried.wait(), timeout=1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert attempts >= 2
