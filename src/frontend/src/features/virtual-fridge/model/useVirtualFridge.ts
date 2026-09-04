@@ -8,7 +8,6 @@ import {
   getIngredientCategories,
   getNotifications,
   getNotificationSettings,
-  markAllNotificationsRead,
   markNotificationRead,
   saveNotificationSettings,
   updateFridgeItem,
@@ -80,6 +79,15 @@ export function useVirtualFridge(query: InventoryQuery) {
     }
   }, []);
 
+  const loadNotifications = useCallback(async () => {
+    try {
+      const result = await getNotifications();
+      setNotifications(result.items);
+    } catch {
+      // Notification refreshes are non-blocking; inventory remains usable.
+    }
+  }, []);
+
   useEffect(() => {
     void loadInventory();
   }, [loadInventory]);
@@ -144,18 +152,9 @@ export function useVirtualFridge(query: InventoryQuery) {
   );
 
   const readNotification = useCallback(async (notificationId: string) => {
-    const saved = await markNotificationRead(notificationId);
+    await markNotificationRead(notificationId);
     setNotifications((current) =>
-      current.map((item) =>
-        item.notification_id === notificationId ? saved : item,
-      ),
-    );
-  }, []);
-
-  const readAllNotifications = useCallback(async () => {
-    await markAllNotificationsRead();
-    setNotifications((current) =>
-      current.map((item) => ({ ...item, status: "READ", read_at: new Date().toISOString() })),
+      current.filter((item) => item.notification_id !== notificationId),
     );
   }, []);
 
@@ -169,10 +168,10 @@ export function useVirtualFridge(query: InventoryQuery) {
     isSaving,
     error,
     loadInventory,
+    loadNotifications,
     saveItem,
     removeItem,
     updateSettings,
     readNotification,
-    readAllNotifications,
   };
 }

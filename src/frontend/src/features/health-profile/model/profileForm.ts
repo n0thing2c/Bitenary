@@ -33,6 +33,16 @@ const PREFERENCE_FIELD_BY_TYPE: Record<
   DISLIKE: "dislikes",
 };
 
+const PREFERENCE_FIELDS: Array<
+  keyof Pick<
+    HealthProfileFormValues,
+    "allergies" | "dietaryRestrictions" | "tastes" | "dislikes"
+  >
+> = ["allergies", "dietaryRestrictions", "tastes", "dislikes"];
+
+export const INVALID_PREFERENCE_MESSAGE =
+  "Enter a food preference that contains letters.";
+
 export function profileToFormValues(
   profile: HealthProfile | null,
 ): HealthProfileFormValues {
@@ -89,8 +99,22 @@ export function validateProfileForm(
   ) {
     errors.targetWeightKg = "Target weight must be greater than zero.";
   }
+  for (const field of PREFERENCE_FIELDS) {
+    if (values[field].some((value) => !isValidPreferenceValue(value))) {
+      errors[field] = INVALID_PREFERENCE_MESSAGE;
+    }
+  }
 
   return errors;
+}
+
+export function isValidPreferenceValue(value: string): boolean {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  return (
+    normalized.length > 0 &&
+    normalized.length <= 100 &&
+    /\p{L}/u.test(normalized)
+  );
 }
 
 export function toLocalDateInputValue(value: Date): string {

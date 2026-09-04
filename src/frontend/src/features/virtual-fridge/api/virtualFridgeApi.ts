@@ -94,7 +94,9 @@ export async function saveNotificationSettings(
 }
 
 export function getNotifications(): Promise<NotificationList> {
-  return apiGet<NotificationList>("/api/notifications?page=1&size=20");
+  return apiGet<NotificationList>(
+    "/api/notifications?unread_only=true&page=1&size=20",
+  );
 }
 
 export async function markNotificationRead(

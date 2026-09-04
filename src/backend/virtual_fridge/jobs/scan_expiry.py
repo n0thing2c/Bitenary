@@ -24,8 +24,9 @@ def parse_datetime(value: str) -> datetime:
     return parsed
 
 
-async def run_scan(now: datetime) -> dict[str, int]:
+async def run_scan(now: datetime | None = None) -> dict[str, int]:
     settings = get_settings()
+    scan_time = now or datetime.now(UTC)
     async with AsyncSessionLocal() as session:
         repository = SqlAlchemyNotificationRepository(session)
         service = ExpiryNotificationService(
@@ -34,12 +35,31 @@ async def run_scan(now: datetime) -> dict[str, int]:
             default_timezone=settings.fridge_default_timezone,
             default_delivery_hour=settings.fridge_default_delivery_hour,
         )
-        result = await service.scan(now=now)
+        result = await service.scan(now=scan_time)
         return {
             "scanned": result.scanned,
             "created": result.created,
             "skipped": result.skipped,
         }
+
+
+async def run_scheduler(interval_seconds: int) -> None:
+    """Continuously create expiry notifications while the API is running."""
+    while True:
+        try:
+            result = await run_scan()
+            logger.info(
+                "Expiry scan complete: scanned=%d created=%d skipped=%d",
+                result["scanned"],
+                result["created"],
+                result["skipped"],
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            # A temporary database failure must not stop future scans.
+            logger.exception("Expiry scan failed; it will be retried")
+        await asyncio.sleep(interval_seconds)
 
 
 def main() -> int:
@@ -53,9 +73,8 @@ def main() -> int:
         help="Timezone-aware ISO timestamp used for deterministic/manual scans.",
     )
     args = parser.parse_args()
-    now = args.now or datetime.now(UTC)
     logging.basicConfig(level=logging.INFO)
-    result = asyncio.run(run_scan(now))
+    result = asyncio.run(run_scan(args.now))
     print(json.dumps(result, sort_keys=True))
     return 0
 

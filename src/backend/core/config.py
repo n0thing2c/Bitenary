@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     fridge_expiry_warning_days: int = Field(default=3, ge=1, le=30)
     fridge_default_timezone: str = Field(default="Asia/Ho_Chi_Minh", min_length=1)
     fridge_default_delivery_hour: int = Field(default=9, ge=0, le=23)
+    fridge_expiry_scan_enabled: bool = True
+    fridge_expiry_scan_interval_seconds: int = Field(default=60, ge=10, le=86400)
 
     @property
     def frontend_origin_list(self) -> list[str]:

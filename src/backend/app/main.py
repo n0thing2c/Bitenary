@@ -1,4 +1,6 @@
+import asyncio
 from contextlib import asynccontextmanager
+from contextlib import suppress
 import logging
 
 from fastapi import FastAPI, Request
@@ -15,6 +17,7 @@ from core.csrf import CSRFMiddleware
 from core.database import AsyncSessionLocal
 from guest_chat.service import GuestChatRateLimiter
 from ingredients.infrastructure.sqlalchemy_ingredients import SqlAlchemyIngredientRepository
+from virtual_fridge.jobs.scan_expiry import run_scheduler as run_expiry_scheduler
 
 
 def configure_logging(settings: Settings) -> None:
@@ -62,10 +65,22 @@ def create_app() -> FastAPI:
         _app.state.guest_chat_rate_limiter = guest_chat_rate_limiter
         await orchestrator.startup()
         await guest_chat_rate_limiter.startup()
-        async with mcp_server.session_manager.run():
-            yield
-        await guest_chat_rate_limiter.shutdown()
-        await orchestrator.shutdown()
+        expiry_scan_task = None
+        if settings.fridge_expiry_scan_enabled:
+            expiry_scan_task = asyncio.create_task(
+                run_expiry_scheduler(settings.fridge_expiry_scan_interval_seconds),
+                name="fridge-expiry-notification-scanner",
+            )
+        try:
+            async with mcp_server.session_manager.run():
+                yield
+        finally:
+            if expiry_scan_task is not None:
+                expiry_scan_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await expiry_scan_task
+            await guest_chat_rate_limiter.shutdown()
+            await orchestrator.shutdown()
 
     app = FastAPI(
         title=settings.app_name,
