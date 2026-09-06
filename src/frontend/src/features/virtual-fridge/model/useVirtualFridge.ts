@@ -6,14 +6,11 @@ import {
   getFridgeItems,
   getFridgeSummary,
   getIngredientCategories,
-  getNotifications,
   getNotificationSettings,
-  markNotificationRead,
   saveNotificationSettings,
   updateFridgeItem,
 } from "../api/virtualFridgeApi";
 import type {
-  ExpiryNotification,
   FridgeItem,
   FridgeItemInput,
   FridgeItemList,
@@ -35,7 +32,6 @@ export function useVirtualFridge(query: InventoryQuery) {
   const [summary, setSummary] = useState<FridgeSummary | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
-  const [notifications, setNotifications] = useState<ExpiryNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,26 +61,13 @@ export function useVirtualFridge(query: InventoryQuery) {
     const results = await Promise.allSettled([
       getIngredientCategories(),
       getNotificationSettings(),
-      getNotifications(),
     ]);
-    const [categoryResult, settingsResult, notificationResult] = results;
+    const [categoryResult, settingsResult] = results;
     if (categoryResult.status === "fulfilled") {
       setCategories(categoryResult.value.categories);
     }
     if (settingsResult.status === "fulfilled") {
       setSettings(settingsResult.value);
-    }
-    if (notificationResult.status === "fulfilled") {
-      setNotifications(notificationResult.value.items);
-    }
-  }, []);
-
-  const loadNotifications = useCallback(async () => {
-    try {
-      const result = await getNotifications();
-      setNotifications(result.items);
-    } catch {
-      // Notification refreshes are non-blocking; inventory remains usable.
     }
   }, []);
 
@@ -151,27 +134,17 @@ export function useVirtualFridge(query: InventoryQuery) {
     [],
   );
 
-  const readNotification = useCallback(async (notificationId: string) => {
-    await markNotificationRead(notificationId);
-    setNotifications((current) =>
-      current.filter((item) => item.notification_id !== notificationId),
-    );
-  }, []);
-
   return {
     list,
     summary,
     categories,
     settings,
-    notifications,
     isLoading,
     isSaving,
     error,
     loadInventory,
-    loadNotifications,
     saveItem,
     removeItem,
     updateSettings,
-    readNotification,
   };
 }

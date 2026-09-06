@@ -93,7 +93,12 @@
   border-left: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.top-nav__notification-anchor {
+  position: relative;
+}
+
 .top-nav__icon-btn {
+  position: relative;
   width: 32px;
   height: 32px;
   display: grid;
@@ -103,6 +108,24 @@
   background: transparent;
   cursor: pointer;
   transition: all var(--dur-base) var(--ease-out);
+}
+
+.top-nav__notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--color-accent);
+  border-radius: 9px;
+  background: #bd413b;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .top-nav__icon-btn:hover {

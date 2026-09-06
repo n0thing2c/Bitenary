@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 
 import { searchIngredients } from "../../features/virtual-fridge/api/virtualFridgeApi";
 import type {
-  ExpiryNotification,
   ExpiryStatus,
   FoodState,
   FridgeItem,
@@ -41,13 +39,11 @@ const DEFAULT_QUERY: InventoryQuery = {
 };
 
 export function VirtualFridgePage() {
-  const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState<InventoryQuery>(DEFAULT_QUERY);
   const [searchText, setSearchText] = useState("");
   const [drawerItem, setDrawerItem] = useState<FridgeItem | "new" | null>(null);
   const [deleteItem, setDeleteItem] = useState<FridgeItem | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const showNotifications = searchParams.get("notifications") === "open";
   const fridge = useVirtualFridge(query);
 
   useEffect(() => {
@@ -73,31 +69,11 @@ export function VirtualFridgePage() {
     };
   }, [deleteItem, drawerItem, fridge.isSaving]);
 
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      void fridge.loadNotifications();
-    }, 60_000);
-    return () => window.clearInterval(interval);
-  }, [fridge.loadNotifications]);
-
-  function setNotificationsOpen(open: boolean) {
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
-      if (open) next.set("notifications", "open");
-      else next.delete("notifications");
-      return next;
-    }, { replace: true });
-  }
-
   const activeFilterCount = [
     query.category,
     query.expiry_status,
     query.food_state,
   ].filter(Boolean).length;
-  const unreadCount = fridge.notifications.filter(
-    (notification) => notification.status !== "READ",
-  ).length;
-
   async function submitItem(input: FridgeItemInput) {
     await fridge.saveItem(
       input,
@@ -123,30 +99,6 @@ export function VirtualFridgePage() {
             {fridge.summary?.total_items ?? fridge.list.total} stored item
             {(fridge.summary?.total_items ?? fridge.list.total) === 1 ? "" : "s"}
           </span>
-
-          <div className="fridge-notification-anchor">
-            <button
-              className="fridge-notification-button"
-              type="button"
-              aria-label="Notifications"
-              aria-expanded={showNotifications}
-              onClick={() => setNotificationsOpen(!showNotifications)}
-            >
-              <Icon name="bell" />
-              {unreadCount ? (
-                <span aria-label={`${unreadCount} unread notifications`}>
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              ) : null}
-            </button>
-            {showNotifications ? (
-              <NotificationCenter
-                notifications={fridge.notifications}
-                onRead={fridge.readNotification}
-                onClose={() => setNotificationsOpen(false)}
-              />
-            ) : null}
-          </div>
 
           <button
             className="fridge-primary-button"
@@ -892,42 +844,6 @@ function DeleteDialog({
   );
 }
 
-function NotificationCenter({
-  notifications,
-  onRead,
-  onClose,
-}: {
-  notifications: ExpiryNotification[];
-  onRead: (id: string) => Promise<void>;
-  onClose: () => void;
-}) {
-  return (
-    <section className="fridge-notifications" aria-label="Expiry notifications">
-      <header>
-        <div><p>Stability alerts</p><h2>Notifications</h2></div>
-        <button type="button" aria-label="Close notifications" onClick={onClose}>×</button>
-      </header>
-      {notifications.length ? (
-        <div className="fridge-notifications__list">
-          {notifications.map((notification) => (
-            <button
-              type="button"
-              className={notification.status !== "READ" ? "is-unread" : ""}
-              key={notification.notification_id}
-              onClick={() => notification.status !== "READ" && void onRead(notification.notification_id)}
-            >
-              <span><Icon name={notification.notification_type === "EXPIRED" ? "warning" : "clock"} /></span>
-              <div><strong>{notification.title}</strong><p>{notification.message}</p><small>{formatRelativeTime(notification.created_at)}</small></div>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="fridge-notifications__empty"><Icon name="bell" /><strong>No alerts yet</strong><span>Expiry reminders will appear here.</span></div>
-      )}
-    </section>
-  );
-}
-
 function EmptyInventory({
   isFiltered,
   onAdd,
@@ -963,16 +879,14 @@ function InventorySkeleton() {
 }
 
 type IconName =
-  | "activity" | "bell" | "calendar" | "clock" | "edit" | "filter"
+  | "activity" | "calendar" | "edit" | "filter"
   | "fridge" | "heat" | "plus" | "save" | "search" | "snow"
   | "state" | "trash" | "warning";
 
 function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, React.ReactNode> = {
     activity: <><path d="M4 17h3l2.1-9 3.3 11 2.2-7H20" /><path d="M5 4.5h14" /></>,
-    bell: <><path d="M7 10a5 5 0 0 1 10 0c0 5 2 5 2 6H5c0-1 2-1 2-6Z" /><path d="M10 19h4" /></>,
     calendar: <><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4M16 3v4M4 10h16" /></>,
-    clock: <><circle cx="12" cy="12" r="8" /><path d="M12 8v5l3 2" /></>,
     edit: <><path d="m5 16-.8 3.8L8 19l10-10-3-3L5 16Z" /><path d="m13.8 7.2 3 3" /></>,
     filter: <path d="M4 6h16l-6 7v5l-4 2v-7L4 6Z" />,
     fridge: <><rect x="6" y="3" width="12" height="18" rx="2" /><path d="M6 9h12M9 6v1M9 12v2" /></>,
@@ -1027,13 +941,4 @@ function sameSettings(a: NotificationSettings, b: NotificationSettings | null): 
     b && a.enabled === b.enabled && a.warning_days === b.warning_days &&
     a.timezone === b.timezone && a.delivery_hour === b.delivery_hour,
   );
-}
-
-function formatRelativeTime(value: string): string {
-  const minutes = Math.round((Date.now() - new Date(value).getTime()) / 60000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
 }

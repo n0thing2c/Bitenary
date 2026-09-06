@@ -11,6 +11,8 @@ import {
   redirectToLogin,
 } from "../../features/auth/api/authApi";
 import { SettingsPanel } from "../../features/settings/ui/SettingsPanel";
+import { useExpiryNotifications } from "../../features/virtual-fridge/model/useExpiryNotifications";
+import { ExpiryNotificationsPopover } from "../../features/virtual-fridge/ui/ExpiryNotificationsPopover";
 import "../../features/chat/ui/tokens.css";
 import "./TopNav.css";
 
@@ -23,8 +25,12 @@ type Props = {
 export function TopNav({ user, isLoggingOut, onLogout }: Props) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarButtonRef = useRef<HTMLButtonElement>(null);
+  const notificationRef = useRef<HTMLDivElement>(null);
+  const notificationButtonRef = useRef<HTMLButtonElement>(null);
+  const notifications = useExpiryNotifications(Boolean(user));
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,14 +38,39 @@ export function TopNav({ user, isLoggingOut, onLogout }: Props) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsMenuOpen(false);
       }
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(event.target as Node)
+      ) {
+        setIsNotificationsOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setIsMenuOpen(false);
+      setIsNotificationsOpen((isOpen) => {
+        if (isOpen) {
+          window.requestAnimationFrame(() => notificationButtonRef.current?.focus());
+        }
+        return false;
+      });
     }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
   function closeSettings() {
     setIsSettingsOpen(false);
     window.requestAnimationFrame(() => avatarButtonRef.current?.focus());
+  }
+
+  function closeNotifications() {
+    setIsNotificationsOpen(false);
+    window.requestAnimationFrame(() => notificationButtonRef.current?.focus());
   }
 
   function requireLogin(
@@ -95,15 +126,41 @@ export function TopNav({ user, isLoggingOut, onLogout }: Props) {
         <div className="top-nav__actions">
           {user ? (
             <>
-              <button
-                className="top-nav__icon-btn"
-                type="button"
-                aria-label="Notifications"
-                title="Notifications"
-                onClick={() => navigate("/fridge?notifications=open")}
-              >
-                <IconBell />
-              </button>
+              <div className="top-nav__notification-anchor" ref={notificationRef}>
+                <button
+                  ref={notificationButtonRef}
+                  className="top-nav__icon-btn"
+                  type="button"
+                  aria-label="Notifications"
+                  aria-expanded={isNotificationsOpen}
+                  aria-haspopup="dialog"
+                  title="Notifications"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    setIsNotificationsOpen((isOpen) => !isOpen);
+                  }}
+                >
+                  <IconBell />
+                  {notifications.unreadCount ? (
+                    <span
+                      className="top-nav__notification-badge"
+                      aria-label={`${notifications.unreadCount} unread notifications`}
+                    >
+                      {notifications.unreadCount > 99 ? "99+" : notifications.unreadCount}
+                    </span>
+                  ) : null}
+                </button>
+                {isNotificationsOpen ? (
+                  <ExpiryNotificationsPopover
+                    notifications={notifications.notifications}
+                    isLoading={notifications.isLoading}
+                    error={notifications.error}
+                    onRetry={notifications.refresh}
+                    onRead={notifications.readNotification}
+                    onClose={closeNotifications}
+                  />
+                ) : null}
+              </div>
               <div className="top-nav__user-menu" ref={menuRef}>
                 <button
                   ref={avatarButtonRef}
@@ -112,7 +169,10 @@ export function TopNav({ user, isLoggingOut, onLogout }: Props) {
                   aria-label={`User menu for ${user.username}`}
                   aria-expanded={isMenuOpen}
                   aria-haspopup="true"
-                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  onClick={() => {
+                    setIsNotificationsOpen(false);
+                    setIsMenuOpen(!isMenuOpen);
+                  }}
                   title="User menu"
                 >
                   {user.username.slice(0, 1).toUpperCase()}
