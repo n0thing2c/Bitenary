@@ -34,23 +34,42 @@ def build_nutrition_tool(
     """
 
     async def calculate_nutrition(query: str, is_raw_ingredient: bool = False) -> dict:
-        """Estimate the nutritional content of a dish or ingredient.
+        """Look up calories and macronutrients for food, dishes, and meals.
 
-        Given a free-form food query (dish name, meal description, or
-        ingredient with quantity), returns per-serving estimates of
-        calories, protein, fat, and carbohydrates sourced from the
-        Spoonacular database.
+        This is Bitenary's primary tool for nutrition calculations. Use it
+        first, before web search or manual estimation, whenever the user asks
+        about calories, protein, fat, carbohydrates, macros, or nutritional
+        values for any food, drink, ingredient, dish, meal, or portion. This
+        applies to natural-language requests in any language, including
+        Vietnamese questions such as "Một tô phở bò có bao nhiêu calo?".
+
+        The result is an estimate sourced from Spoonacular. Do not present it
+        as an exact laboratory measurement. If a dish lookup fails, retry once
+        with a short, plain English dish name and remove serving filler,
+        accents, and parenthetical translations; for example, retry
+        ``"1 bowl of Vietnamese beef pho (phở bò)"`` as ``"beef pho"``. If
+        the shorter query also fails, report that nutrition data could not be
+        retrieved instead of inventing values or silently switching to web
+        search.
 
         Args:
-            query: Natural-language description of the food item.
+            query: Natural-language food description. Prefer a concise dish
+                name for a prepared dish, or an ingredient/basic food with a
+                concrete quantity when using ingredient mode.
                 Examples:
-                - ``"grilled salmon"``
-                - ``"200g chicken breast``
-                - ``"a bowl of pho"``
-            is_raw_ingredient: Must be set to True if the query contains 
-                raw ingredients with specific quantities (e.g., "100g chicken breast", 
-                "2 eggs"). Must be set to False if the query is a complete dish 
-                name (e.g., "pho", "spaghetti").
+                - ``"beef pho"`` with ``is_raw_ingredient=False``
+                - ``"spaghetti bolognese"`` with
+                  ``is_raw_ingredient=False``
+                - ``"200 g chicken breast"`` with
+                  ``is_raw_ingredient=True``
+                - ``"2 eggs"`` with ``is_raw_ingredient=True``
+            is_raw_ingredient: Selects how Spoonacular interprets ``query``.
+                Set to ``True`` for an ingredient or basic food with an
+                explicit quantity, including cooked basics such as
+                ``"150 g cooked white rice"``. Set to ``False`` for a named
+                prepared or complex dish, even when the user describes it as
+                one bowl or one serving. For example, use ``False`` for
+                ``"beef pho"`` and ``"spaghetti bolognese"``.
 
         Returns:
             A JSON-serialisable dict with the structure::
@@ -66,8 +85,8 @@ def build_nutrition_tool(
                 }
 
         Raises:
-            ExternalServiceError: When the Spoonacular API is unavailable or
-                returns an unrecognised response.
+            ExternalServiceError: When Spoonacular is unavailable, cannot
+                identify the food, or returns an unrecognised response.
         """
         principal = current_principal()
 

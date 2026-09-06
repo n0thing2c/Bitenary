@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import Boolean, Index, String, func, or_, select
+from sqlalchemy import Boolean, Index, String, and_, case, func, or_, select
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
@@ -70,6 +70,8 @@ class SqlAlchemyIngredientRepository:
     ) -> list[IngredientMaster]:
         stmt = select(IngredientMasterModel)
 
+        normalized_query = " ".join(q.casefold().split()) if q else ""
+
         if only_default:
             stmt = stmt.where(IngredientMasterModel.is_default.is_(True))
 
@@ -78,16 +80,44 @@ class SqlAlchemyIngredientRepository:
                 func.lower(IngredientMasterModel.category) == category.lower()
             )
 
-        if q:
-            pattern = f"%{q.lower()}%"
+        if normalized_query:
+            name = func.lower(IngredientMasterModel.name)
+            variant = func.lower(IngredientMasterModel.variant)
+            searchable_text = name + " " + variant
+            phrase_pattern = f"%{normalized_query}%"
+            token_matches = [
+                searchable_text.like(f"%{token}%")
+                for token in normalized_query.split()
+            ]
             stmt = stmt.where(
                 or_(
-                    func.lower(IngredientMasterModel.name).like(pattern),
-                    func.lower(IngredientMasterModel.variant).like(pattern),
+                    name.like(phrase_pattern),
+                    variant.like(phrase_pattern),
+                    and_(*token_matches),
                 )
             )
-
-        stmt = stmt.order_by(IngredientMasterModel.name)
+            relevance = case(
+                (name == normalized_query, 0),
+                (name.like(f"{normalized_query}%"), 1),
+                (name.like(phrase_pattern), 2),
+                (variant.like(f"{normalized_query}%"), 3),
+                (variant.like(phrase_pattern), 4),
+                else_=5,
+            )
+            stmt = stmt.order_by(
+                relevance,
+                IngredientMasterModel.is_default.desc(),
+                func.length(IngredientMasterModel.name),
+                IngredientMasterModel.name,
+                func.length(IngredientMasterModel.variant),
+                IngredientMasterModel.variant,
+            )
+        else:
+            stmt = stmt.order_by(
+                IngredientMasterModel.name,
+                IngredientMasterModel.is_default.desc(),
+                IngredientMasterModel.variant,
+            )
         stmt = stmt.offset((page - 1) * size).limit(size)
 
         result = await self._session.execute(stmt)

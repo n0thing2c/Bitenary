@@ -667,18 +667,29 @@ function ItemDrawer({
 
   useEffect(() => {
     if (selectedIngredient && ingredientQuery === selectedIngredient.name) return;
+    const normalizedQuery = ingredientQuery.trim();
+    if (!normalizedQuery) {
+      setIngredientResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    let cancelled = false;
     const timeout = window.setTimeout(async () => {
       setIsSearching(true);
       try {
-        const response = await searchIngredients(ingredientQuery);
-        setIngredientResults(response.items);
+        const response = await searchIngredients(normalizedQuery);
+        if (!cancelled) setIngredientResults(response.items);
       } catch {
-        setIngredientResults([]);
+        if (!cancelled) setIngredientResults([]);
       } finally {
-        setIsSearching(false);
+        if (!cancelled) setIsSearching(false);
       }
     }, 250);
-    return () => window.clearTimeout(timeout);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
   }, [ingredientQuery, selectedIngredient]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {

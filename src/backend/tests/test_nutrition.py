@@ -5,11 +5,26 @@ import httpx
 
 from bitenary_mcp.infrastructure.spoonacular import SpoonacularClient, SpoonacularError
 from bitenary_mcp.domain.schemas import NutritionInformation
+from bitenary_mcp.tools.nutrition import build_nutrition_tool
 
 
 @pytest.fixture
 def mock_settings(monkeypatch):
     monkeypatch.setenv("SPOONACULAR_API_KEY", "test-api-key")
+
+
+def test_calculate_nutrition_description_guides_tool_selection() -> None:
+    """Keep the MCP-visible description explicit about routing and inputs."""
+
+    tool = build_nutrition_tool(AsyncMock(), AsyncMock())
+    description = tool.__doc__ or ""
+
+    assert "before web search or manual estimation" in description
+    assert "calories, protein, fat, carbohydrates, macros" in description
+    assert '"beef pho"' in description
+    assert "retry once" in description
+    assert "is_raw_ingredient=False" in description
+    assert "is_raw_ingredient=True" in description
 
 
 @pytest.mark.anyio
