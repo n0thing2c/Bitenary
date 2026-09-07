@@ -229,17 +229,6 @@ export function HealthProfilePage({
               </div>
             </dl>
           </section>
-
-          <section className="health-profile-rail__notice">
-            <span aria-hidden="true">i</span>
-            <div>
-              <strong>Calculated metrics are coming later</strong>
-              <p>
-                Energy, macro and hydration targets will appear after the
-                calculation model has been reviewed.
-              </p>
-            </div>
-          </section>
         </aside>
       </div>
 
